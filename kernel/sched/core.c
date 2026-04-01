@@ -4876,6 +4876,29 @@ out_unlock:
 	return retval;
 }
 
+static bool task_is_unity_game(struct task_struct *p)
+{
+	struct task_struct *t;
+	bool ret = false;
+
+	/* Filter for Android user applications (i.e., positive adj) */
+	if (p->signal->oom_score_adj >= 0) {
+		rcu_read_lock();
+		for_each_thread(p, t) {
+			/* Check for a UnityMain thread in the thread group */
+			if (!strcmp(t->comm, "UnityMain") ||
+		    !strcmp(t->comm, "UnityGfxDeviceGLES") ||
+		    !strcmp(t->comm, "UnityGfxDeviceW")) {
+			ret = true;
+			break;
+			}
+		}
+		rcu_read_unlock();
+	}
+
+	return ret;
+}
+
 long sched_setaffinity(pid_t pid, const struct cpumask *in_mask)
 {
 	cpumask_var_t cpus_allowed, new_mask;
@@ -4896,6 +4919,9 @@ long sched_setaffinity(pid_t pid, const struct cpumask *in_mask)
 	get_task_struct(p);
 	rcu_read_unlock();
 
+	if (task_is_unity_game(p))
+		goto out_put_task;
+	
 	if (p->flags & PF_NO_SETAFFINITY) {
 		retval = -EINVAL;
 		goto out_put_task;
