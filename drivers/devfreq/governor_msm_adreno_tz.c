@@ -282,7 +282,7 @@ static int tz_init_ca(struct devfreq_msm_adreno_tz_data *priv)
 	ret = scm_call2(SCM_SIP_FNID(SCM_SVC_DCVS, TZ_V2_INIT_CA_ID_64),
 			&desc);
 
-	kfree(tz_buf);
+	kzfree(tz_buf);
 
 	return ret;
 }
@@ -319,7 +319,7 @@ static int tz_init(struct devfreq_msm_adreno_tz_data *priv,
 		if (!ret)
 			priv->is_64 = true;
 
-		kfree(tz_buf);
+		kzfree(tz_buf);
 	} else {
 		ret = -EINVAL;
 	}
