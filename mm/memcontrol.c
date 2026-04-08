@@ -3362,7 +3362,7 @@ static int mem_cgroup_swappiness_write(struct cgroup_subsys_state *css,
 	if (css->parent)
 		memcg->swappiness = val;
 	else
-		vm_swappiness = val;
+		vm_swappiness = 10; /* hardcode default swappiness to 10 */
 
 	return 0;
 }
