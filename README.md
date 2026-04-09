@@ -1,4 +1,4 @@
-# Mapping Kernel Tree: Redmi Note 10 Pro (sweet)
+# Redmi Note 10 Pro (sweet)
 
 ## Metadata Perangkat
 - **Perangkat**: Redmi Note 10 Pro (Kodenama: sweet)
