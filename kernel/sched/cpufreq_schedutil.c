@@ -19,8 +19,6 @@
 #include <linux/sched/sysctl.h>
 #include "sched.h"
 
-#define SUGOV_KTHREAD_PRIORITY	50
-
 struct sugov_tunables {
 	struct gov_attr_set attr_set;
 	unsigned int		up_rate_limit_us;
@@ -41,7 +39,6 @@ struct sugov_policy {
 	s64			min_rate_limit_ns;
 	s64			up_rate_delay_ns;
 	s64			down_rate_delay_ns;
-	s64 freq_update_delay_ns;
 	u64 last_ws;
 	u64 curr_cycles;
 	u64 last_cyc_update_time;
@@ -183,9 +180,9 @@ static void sugov_track_cycles(struct sugov_policy *sg_policy,
 
 	/* Track cycles in current window */
 	delta_ns = upto - sg_policy->last_cyc_update_time;
-	delta_ns *= prev_freq;
-	do_div(delta_ns, (NSEC_PER_SEC / KHZ));
-	cycles = delta_ns;
+	/* Use u64 multiplication to avoid overflow on high freq * long delta */
+	cycles = delta_ns * (u64)prev_freq;
+	do_div(cycles, (NSEC_PER_SEC / KHZ));
 	sg_policy->curr_cycles += cycles;
 	sg_policy->last_cyc_update_time = upto;
 }
@@ -288,6 +285,8 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 	unsigned int freq = arch_scale_freq_invariant() ?
 				policy->cpuinfo.max_freq : policy->cur;
 
+	if (unlikely(!max))
+		max = 1;
 	freq = (freq + (freq >> 2)) * util / max;
 	trace_sugov_next_freq(policy->cpu, util, max, freq);
 
@@ -1115,7 +1114,7 @@ static void sugov_limits(struct cpufreq_policy *policy)
 	} else {
 		raw_spin_lock_irqsave(&sg_policy->update_lock, flags);
 		sugov_track_cycles(sg_policy, sg_policy->policy->cur,
-				   ktime_get_ns());
+				   sched_ktime_clock());
 		cpufreq_policy_apply_limits_fast(policy);
 		raw_spin_unlock_irqrestore(&sg_policy->update_lock, flags);
 	}
