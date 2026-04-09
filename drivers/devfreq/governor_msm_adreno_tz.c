@@ -110,7 +110,8 @@ static ssize_t gpu_load_show(struct device *dev,
 	 */
 	spin_lock(&sample_lock);
 	if (acc_total)
-		sysfs_busy_perc = (acc_relative_busy * 100) / acc_total;
+		sysfs_busy_perc = (unsigned long)
+			(((u64)acc_relative_busy * 100) / acc_total);
 
 	/* Reset the parameters */
 	acc_total = 0;
@@ -170,7 +171,8 @@ static void compute_work_load(struct devfreq_dev_status *stats,
 	 */
 	acc_total += stats->total_time;
 	busy = (u64)stats->busy_time * stats->current_frequency;
-	do_div(busy, devfreq->profile->freq_table[0]);
+	if (likely(devfreq->profile->freq_table[0]))
+		do_div(busy, devfreq->profile->freq_table[0]);
 	acc_relative_busy += busy;
 	spin_unlock(&sample_lock);
 }
@@ -368,9 +370,12 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq)
 	int result = 0;
 	struct devfreq_msm_adreno_tz_data *priv = devfreq->data;
 	struct devfreq_dev_status stats;
-	int val, level = 0;
+	int val = 0, level = 0;
 	unsigned int scm_data[4];
 	int context_count = 0;
+
+	if (unlikely(!priv))
+		return -EINVAL;
 
 	/* keeps stats.private_data == NULL */
 	result = devfreq->profile->get_dev_status(devfreq->dev.parent, &stats);
@@ -434,11 +439,19 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq)
 		val = -1 * level;
 	} else {
 		scm_data[0] = level;
-		scm_data[1] = priv->bin.total_time;
-		scm_data[2] = priv->bin.busy_time;
+		/*
+		 * bin.total_time and bin.busy_time are unsigned long.
+		 * On 64-bit builds this truncates to 32-bit intentionally:
+		 * TZ SCM interface expects 32-bit values, and the overflow
+		 * guard in tz_get_target_freq keeps values within range.
+		 */
+		scm_data[1] = (unsigned int)priv->bin.total_time;
+		scm_data[2] = (unsigned int)priv->bin.busy_time;
 		scm_data[3] = context_count;
-		__secure_tz_update_entry3(scm_data, sizeof(scm_data),
-					&val, sizeof(val), priv);
+		result = __secure_tz_update_entry3(scm_data, sizeof(scm_data),
+						&val, sizeof(val), priv);
+		if (unlikely(result))
+			return result;
 	}
 
 	priv->bin.total_time = 0;
@@ -519,6 +532,9 @@ static int tz_suspend(struct devfreq *devfreq)
 	struct devfreq_msm_adreno_tz_data *priv = devfreq->data;
 	unsigned int scm_data[2] = {0, 0};
 
+	if (unlikely(!priv))
+		return -EINVAL;
+
 	__secure_tz_reset_entry2(scm_data, sizeof(scm_data), priv->is_64);
 
 	priv->bin.total_time = 0;
@@ -580,6 +596,11 @@ int msm_adreno_devfreq_init_tz(struct devfreq *devfreq)
 		return -EINVAL;
 
 	priv = devfreq->data;
+
+	if (unlikely(!devfreq->profile || !devfreq->profile->freq_table)) {
+		pr_err(TAG "invalid profile or freq_table\n");
+		return -EINVAL;
+	}
 
 	if (devfreq->profile->max_state < MSM_ADRENO_MAX_PWRLEVELS) {
 		for (i = 0; i < devfreq->profile->max_state; i++)
