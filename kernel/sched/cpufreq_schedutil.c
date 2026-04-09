@@ -115,6 +115,9 @@ static bool sugov_should_update_freq(struct sugov_policy *sg_policy, u64 time)
 	    !cpufreq_can_do_remote_dvfs(sg_policy->policy))
 		return false;
 
+	if (sg_policy->work_in_progress)
+		return false;
+
 	if (unlikely(sg_policy->need_freq_update)) {
 		sg_policy->need_freq_update = false;
 		/*
@@ -196,7 +199,6 @@ static void sugov_calc_avg_cap(struct sugov_policy *sg_policy, u64 curr_ws,
 	if (unlikely(!sysctl_sched_use_walt_cpu_util))
 		return;
 
-	BUG_ON(curr_ws < last_ws);
 	if (curr_ws <= last_ws)
 		return;
 
@@ -208,7 +210,12 @@ static void sugov_calc_avg_cap(struct sugov_policy *sg_policy, u64 curr_ws,
 	} else {
 		sugov_track_cycles(sg_policy, prev_freq, curr_ws);
 		avg_freq = sg_policy->curr_cycles;
-		avg_freq /= sched_ravg_window / (NSEC_PER_SEC / KHZ);
+		{
+			u64 divisor = sched_ravg_window /
+						(NSEC_PER_SEC / KHZ);
+			if (likely(divisor))
+				avg_freq /= divisor;
+		}
 	}
 	sg_policy->avg_cap = freq_to_util(sg_policy, avg_freq);
 	sg_policy->curr_cycles = 0;
@@ -220,6 +227,9 @@ static void sugov_update_commit(struct sugov_policy *sg_policy, u64 time,
 {
 	struct cpufreq_policy *policy = sg_policy->policy;
 	unsigned int cpu;
+
+	if (policy->fast_switch_enabled)
+		sugov_track_cycles(sg_policy, policy->cur, time);
 
 	if (sg_policy->next_freq == next_freq)
 		return;
@@ -234,7 +244,6 @@ static void sugov_update_commit(struct sugov_policy *sg_policy, u64 time,
 	sg_policy->last_freq_update_time = time;
 
 	if (policy->fast_switch_enabled) {
-		sugov_track_cycles(sg_policy, sg_policy->policy->cur, time);
 		next_freq = cpufreq_driver_fast_switch(policy, next_freq);
 		if (!next_freq)
 			return;
@@ -244,8 +253,7 @@ static void sugov_update_commit(struct sugov_policy *sg_policy, u64 time,
 			trace_cpu_frequency(next_freq, cpu);
 		}
 	} else {
-		if (use_pelt())
-			sg_policy->work_in_progress = true;
+		sg_policy->work_in_progress = true;
 		irq_work_queue(&sg_policy->irq_work);
 	}
 }
@@ -428,6 +436,9 @@ static void sugov_update_single(struct update_util_data *hook, u64 time,
 	if (!sugov_should_update_freq(sg_policy, time))
 		return;
 
+	if (flags & SCHED_CPUFREQ_CONTINUE)
+		return;
+
 	busy = use_pelt() && sugov_cpu_is_busy(sg_cpu);
 
 	raw_spin_lock(&sg_policy->update_lock);
@@ -596,8 +607,7 @@ static void sugov_work(struct kthread_work *work)
 				CPUFREQ_RELATION_L);
 	mutex_unlock(&sg_policy->work_lock);
 
-	if (use_pelt())
-		sg_policy->work_in_progress = false;
+	sg_policy->work_in_progress = false;
 }
 
 static void sugov_irq_work(struct irq_work *irq_work)
@@ -632,14 +642,10 @@ static inline struct sugov_tunables *to_sugov_tunables(struct gov_attr_set *attr
 	return container_of(attr_set, struct sugov_tunables, attr_set);
 }
 
-static DEFINE_MUTEX(min_rate_lock);
-
 static void update_min_rate_limit_ns(struct sugov_policy *sg_policy)
 {
-	mutex_lock(&min_rate_lock);
 	sg_policy->min_rate_limit_ns = min(sg_policy->up_rate_delay_ns,
 					   sg_policy->down_rate_delay_ns);
-	mutex_unlock(&min_rate_lock);
 }
 
 static ssize_t up_rate_limit_us_show(struct gov_attr_set *attr_set, char *buf)
@@ -1057,6 +1063,11 @@ static int sugov_start(struct cpufreq_policy *policy)
 		memset(sg_cpu, 0, sizeof(*sg_cpu));
 		sg_cpu->cpu = cpu;
 		sg_cpu->sg_policy = sg_policy;
+		/*
+		 * Set DL flag to force max freq on the first update,
+		 * preventing a cold-start at minimum frequency after
+		 * governor switch or CPU hotplug.
+		 */
 		sg_cpu->flags = SCHED_CPUFREQ_DL;
 		sg_cpu->iowait_boost_max = policy->cpuinfo.max_freq;
 	}
