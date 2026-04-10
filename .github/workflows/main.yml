@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     env:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
       CCACHE_COMPRESS: 1
@@ -62,9 +62,9 @@ jobs:
             android_kernel_xiaomi_sm6150/clang
             android_kernel_xiaomi_sm6150/gcc64
             android_kernel_xiaomi_sm6150/gcc32
-          key: ${{ runner.os }}-toolchains-${{ hashFiles('android_kernel_xiaomi_sm6150/sweet.sh') }}
+          key: ${{ runner.os }}-toolchains-v2-${{ hashFiles('android_kernel_xiaomi_sm6150/sweet.sh') }}
           restore-keys: |
-            ${{ runner.os }}-toolchains-
+            ${{ runner.os }}-toolchains-v2-
 
       - name: Install build dependencies
         run: |
@@ -151,7 +151,7 @@ jobs:
 
   release:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
     steps:
