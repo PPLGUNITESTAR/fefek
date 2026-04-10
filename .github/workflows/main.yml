@@ -2,6 +2,12 @@ name: Sweet
 
 on:
   workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch kernel yang akan di-build'
+        required: true
+        default: 'binder'
+
   schedule:
     - cron: "5 3 * * 0"
 
@@ -11,12 +17,15 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_COMPRESS: 1
+      CCACHE_COMPILERCHECK: content
+      CCACHE_MAXSIZE: 10G
     outputs:
       timestamp: ${{ steps.ts.outputs.TIME }}
       date: ${{ steps.ts.outputs.DATE }}
-      kernel_hash: ${{ steps.extract_info.outputs.HASH }}
-      kernel_msg: ${{ steps.extract_info.outputs.MSG }}
-      kernel_branch: ${{ steps.extract_info.outputs.BRANCH }}
+      changelog: ${{ steps.extract_info.outputs.CHANGELOG }}
     strategy:
       matrix:
         build-type: [sweet]
@@ -24,6 +33,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6.0.2
+        with:
+          path: android_kernel_xiaomi_sm6150
+          fetch-depth: 10
+          ref: ${{ github.event.inputs.branch || 'binder' }}
+
 
       - name: Timestamp
         id: ts
@@ -36,11 +50,22 @@ jobs:
       - name: Setup Compiler Cache (ccache)
         uses: actions/cache@v5.0.4
         with:
-          path: ~/.cache/ccache
+          path: ${{ env.CCACHE_DIR }}
           key: ${{ runner.os }}-ccache-${{ matrix.build-type }}-${{ matrix.ksu-type }}-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-ccache-${{ matrix.build-type }}-${{ matrix.ksu-type }}-
             ${{ runner.os }}-ccache-${{ matrix.build-type }}-
+
+      - name: Setup Toolchain Cache
+        uses: actions/cache@v5.0.4
+        with:
+          path: |
+            android_kernel_xiaomi_sm6150/clang
+            android_kernel_xiaomi_sm6150/gcc64
+            android_kernel_xiaomi_sm6150/gcc32
+          key: ${{ runner.os }}-toolchains-${{ hashFiles('android_kernel_xiaomi_sm6150/sweet.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-toolchains-
 
       - name: Install build dependencies
         run: |
@@ -52,31 +77,31 @@ jobs:
 
       - name: Preparing kernel sources
         run: |
-          if [ -d "$PWD/android_kernel_xiaomi_sm6150" ]; then
-            rm -rf android_kernel_xiaomi_sm6150
-          fi
-          echo "Cloning kernel sources..."
-          git clone https://github.com/PPLGUNITESTAR/fefek.git -b "binder" --depth=1 android_kernel_xiaomi_sm6150
-          echo "Copying buildscript..."
-          cp sweet.sh android_kernel_xiaomi_sm6150/
+          echo "Setting permissions for buildscript..."
           chmod +x ./android_kernel_xiaomi_sm6150/sweet.sh
 
-      - name: Extract Kernel Source Info
+      - name: Extract Changelog
         id: extract_info
         run: |
           cd android_kernel_xiaomi_sm6150
-          echo "HASH=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          echo "MSG=$(git log -1 --pretty=%s)" >> $GITHUB_OUTPUT
-          echo "BRANCH=$(git rev-parse --abbrev-ref HEAD || echo 'los-23.2-test')" >> $GITHUB_OUTPUT
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          git log -n 10 --pretty=format:"- %h: %s" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Ccache Stats (Initial)
+        run: ccache -s
 
       - name: Compile the kernel
         run: |
           echo "Determining KSU type..."
           echo "Starting to compile..."
           cd android_kernel_xiaomi_sm6150/
-          # Presisi Absolut: Melempar tepat 2 argumen untuk menaati arsitektur sweet.sh terbaru
           ./sweet.sh sweet ${{ matrix.ksu-type }}
           cd ..
+
+      - name: Ccache Stats (Final)
+        run: ccache -s
 
       - name: Preparing AnyKernel3 sources
         run: |
@@ -143,8 +168,7 @@ jobs:
             > [!CAUTION]   
             > - Always backup your boot & dtbo image first before proceeding!
 
-            ### 📦 Upstream Kernel Tracking
-            - **Branch**: `${{ needs.build.outputs.kernel_branch }}`
-            - **Commit**: [`${{ needs.build.outputs.kernel_hash }}`] - *${{ needs.build.outputs.kernel_msg }}*
+            ### 📝 Recent Changes
+            ${{ needs.build.outputs.changelog }}
           files: artifacts/**/*.zip
           overwrite_files: true
