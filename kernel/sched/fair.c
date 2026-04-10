@@ -2765,10 +2765,8 @@ void task_tick_numa(struct rq *rq, struct task_struct *curr)
 			curr->numa_scan_period = task_scan_start(curr);
 		curr->node_stamp += period;
 
-		if (!time_before(jiffies, curr->mm->numa_next_scan)) {
-			init_task_work(work, task_numa_work); /* TODO: move this into sched_fork() */
+		if (!time_before(jiffies, curr->mm->numa_next_scan))
 			task_work_add(curr, work, true);
-		}
 	}
 }
 
@@ -10778,15 +10776,25 @@ static struct sched_group *find_busiest_group(struct lb_env *env)
 		cpu_local = group_first_cpu(sds.local);
 		cpu_busiest = group_first_cpu(sds.busiest);
 
-		/* TODO: don't assume same cap cpus are in same domain */
 		capacity_local = capacity_orig_of(cpu_local);
 		capacity_busiest = capacity_orig_of(cpu_busiest);
 		if (capacity_local > capacity_busiest) {
 			goto out_balanced;
 		} else if (capacity_local == capacity_busiest) {
+			/*
+			 * Same capacity doesn't imply same scheduling domain.
+			 * Verify CPUs share the same LLC domain before treating
+			 * them as symmetric peers. If they don't share cache,
+			 * they may span different physical clusters and we should
+			 * allow the load pull to proceed.
+			 */
+			if (!cpus_share_cache(cpu_local, cpu_busiest))
+				goto out_balance_check;
 			if (cpu_rq(cpu_busiest)->nr_running < 2)
 				goto out_balanced;
 		}
+	out_balance_check:
+		;
 	}
 
 	local = &sds.local_stat;
@@ -12364,6 +12372,15 @@ static void task_fork_fair(struct task_struct *p)
 
 	se->vruntime -= cfs_rq->min_vruntime;
 	rq_unlock(rq, &rf);
+
+#ifdef CONFIG_NUMA_BALANCING
+	/*
+	 * Initialize the NUMA work callback once at fork time rather than
+	 * on every timer tick in task_tick_numa(). This removes the
+	 * init_task_work() call from the hot scheduler tick path.
+	 */
+	init_task_work(&p->numa_work, task_numa_work);
+#endif
 }
 
 /*
