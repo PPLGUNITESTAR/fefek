@@ -32,7 +32,6 @@ phase()   { echo ""; echo "━━━ $* ━━━"; }
 # =============================================================================
 phase "Phase 0 · Input Validation"
 
-# Menghapus argumen ke-3 (BBG). BBG kini di-hardcode AKTIF MUTLAK!
 [ $# -ne 2 ] && die "Usage: $0 [device] [ksu_mode]
   ksu_mode : none | ksu | ksu_susfs | zako | zako_susfs"
 
@@ -44,7 +43,7 @@ case "$KERNELSU_SELECTOR" in
     *) die "Invalid ksu_mode: '$KERNELSU_SELECTOR'. Valid: none | ksu | ksu_susfs | zako | zako_susfs" ;;
 esac
 
-success "Args OK — device=$DEVICE_IMPORT ksu=$KERNELSU_SELECTOR (BBG Always Active)"
+success "Args OK — device=$DEVICE_IMPORT ksu=$KERNELSU_SELECTOR"
 
 # =============================================================================
 #  Phase 1 — Environment Setup
@@ -194,8 +193,8 @@ add_goodies() {
     echo "CONFIG_SCHED_BORE=y" >> "$MAIN_DEFCONFIG"
     success "BORE scheduler injected"
 
-    # ── Baseband Guard (HARDCODED AKTIF) ──────────────────────────────────────
-    info "Setting up Baseband Guard (Always Active)..."
+    # ── Baseband Guard ──────────────────────────────────────
+    info "Setting up Baseband Guard..."
     curl -LSs "https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh" | bash &>/dev/null
     echo "CONFIG_BBG=y" >> "$MAIN_DEFCONFIG"
     success "Baseband Guard enabled"
@@ -205,8 +204,6 @@ add_goodies() {
         info "Setting up ReSukiSU..."
         curl -LSs "https://github.com/ReSukiSU/ReSukiSU/raw/refs/heads/main/kernel/setup.sh" \
             | bash -s main &>/dev/null
-
-        # SOLUSI: Menggunakan blok { echo } untuk menjamin format rata kiri mutlak
         {
             echo "CONFIG_KSU=y"
             echo "CONFIG_KSU_MULTI_MANAGER_SUPPORT=y"
@@ -220,8 +217,6 @@ add_goodies() {
             info "Applying SUSFS patch (JackA1ltman/4.14)..."
             wget -qO- "https://github.com/JackA1ltman/NonGKI_Kernel_Build_2nd/raw/refs/heads/mainline/Patches/Patch/susfs_patch_to_4.14.patch" \
                 | patch -s -p1 --fuzz=5
-
-            # Mencegah ilusi indentasi pada SUSFS config
             {
                 echo "CONFIG_KSU_SUSFS=y"
                 echo "CONFIG_KSU_SUSFS_SUS_PATH=y"
@@ -255,7 +250,7 @@ add_goodies() {
 add_goodies
 
 # =============================================================================
-#  Phase 4 — Pre-compile: Config + Intentional -O3
+#  Phase 4 — Pre-compile
 # =============================================================================
 phase "Phase 4 · Pre-compile Configuration"
 
@@ -277,7 +272,7 @@ before_compile() {
     echo "CONFIG_LOCALVERSION=\"$KERNEL_NAME\"" >> out/.config
 
     # ── Step 3: Kernel Config API — intentional overrides ────────────────────
-    info "Applying performance + size config overrides (non-placebo)..."
+    info "Applying performance + size config overrides..."
 
     # [SIZE] Nuke all debug info — biggest single size win
     ./scripts/config --file out/.config \
@@ -287,16 +282,11 @@ before_compile() {
         --disable DEBUG_INFO_DWARF4     \
         --enable  DEBUG_INFO_NONE
 
-    # [SIZE] Strip unused sections & symbols via ThinLTO + linker GC
-    # [PERF] Enable advanced Clang optimizations (ThinLTO, Polly, PGO, BOLT)
+    # [SIZE] LTO & Linker GC
     ./scripts/config --file out/.config \
         --enable  LTO_CLANG             \
-        --disable LTO_CLANG_FULL        \
-        --enable  LTO_CLANG_THIN        \
-        --enable  THINLTO               \
-        --enable  LLVM_POLLY            \
-        --enable  PGO_CLANG             \
-        --enable  BOLT_CLANG            \
+        --enable  LTO_CLANG_FULL        \
+        --disable LTO_CLANG_THIN        \
         --disable MODVERSIONS           \
         --disable MODULE_SIG            \
         --disable MODULE_SIG_FORCE
@@ -330,7 +320,23 @@ before_compile() {
         --disable SLUB_DEBUG            \
         --disable DEBUG_MEMORY_INIT     \
         --disable DETECT_HUNG_TASK      \
-        --disable LOCKUP_DETECTOR
+        --disable LOCKUP_DETECTOR       \
+        --disable PROFILING
+
+    # [SILENT] Nuke bloated Qualcomm logs & verbose debugs 
+    ./scripts/config --file out/.config \
+        --disable SCHED_DEBUG           \
+        --disable DYNAMIC_DEBUG         \
+        --disable IPC_LOGGING           \
+        --disable QCOM_RTB              \
+        --disable DEBUG_BUGVERBOSE      \
+        --disable DEBUG_SPINLOCK        \
+        --disable DEBUG_MUTEXES         \
+        --disable DEBUG_ATOMIC_SLEEP    \
+        --disable PROVE_LOCKING         \
+        --disable MSM_DEBUG_LAR_UNLOCK  \
+        --set-val CONSOLE_LOGLEVEL_DEFAULT 3 \
+        --set-val MESSAGE_LOGLEVEL_DEFAULT 3
 
     # [PERF/BATTERY] CPU idle & power
     ./scripts/config --file out/.config \
@@ -365,14 +371,11 @@ phase "Phase 5 · Compilation  ($THREAD_COUNT threads)"
 
 compile_it() {
     info "Launching make with $THREAD_COUNT jobs..."
-    # Build kernel and log the output to capture warnings/errors
     make -j"$THREAD_COUNT" O=out "${MAKE_ARGS[@]}" 2>&1 | tee build.log
     local rc=${PIPESTATUS[0]}
     
-    # Ekstrak warnings dan errors lengkap dengan path file ke warnings.txt
     grep -Eiw "warning:|error:" build.log > warnings.txt || true
     
-    # Export count agar bisa dibaca fungsi finalize_build
     export WARN_COUNT=$(grep -ciw "warning:" build.log || true)
     export ERR_COUNT=$(grep -ciw "error:" build.log || true)
     
@@ -406,9 +409,9 @@ finalize_build() {
     ERR_COUNT=${ERR_COUNT:-0}
 
     echo ""
-    echo -e "\E[1;36m╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮\E[0m"
+    echo -e "\E[1;36m╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮\E[0m"
     echo -e "\E[1;36m│\E[0m\E[1;32m                 BUILD SUCCESSFUL                    \E[0m\E[1;36m│\E[0m"
-    echo -e "\E[1;36m├━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┤\E[0m"
+    echo -e "\E[1;36m├━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┤\E[0m"
     printf  "\E[1;36m│\E[0m  \E[1;37mKernel  :\E[0m \E[1;32m%-41s\E[0m\E[1;36m│\E[0m\n" "$KERNEL_NAME"
     printf  "\E[1;36m│\E[0m  \E[1;37mDevice  :\E[0m \E[1;33m%-41s\E[0m\E[1;36m│\E[0m\n" "$DEVICE_IMPORT"
     printf  "\E[1;36m│\E[0m  \E[1;37mKSU     :\E[0m \E[1;35m%-41s\E[0m\E[1;36m│\E[0m\n" "$KERNELSU_SELECTOR"
@@ -419,7 +422,7 @@ finalize_build() {
     echo -e "\E[1;36m├─────────────────────────────────────────────────────┤\E[0m"
     printf  "\E[1;36m│\E[0m  \E[1;37mErrors  :\E[0m \E[1;31m%-41s\E[0m\E[1;36m│\E[0m\n" "$ERR_COUNT"
     printf  "\E[1;36m│\E[0m  \E[1;37mWarnings:\E[0m \E[1;33m%-41s\E[0m\E[1;36m│\E[0m\n" "$WARN_COUNT"
-    echo -e "\E[1;36m╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯\E[0m"
+    echo -e "\E[1;36m╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯\E[0m"
     echo ""
     ls -alh "$IMAGE"
 }
