@@ -106,7 +106,7 @@ setup_environment() {
     export MAKE_ARGS=(
         ARCH=arm64
         LLVM=1 LLVM_IAS=1
-        CC="ccache clang" LD=ld.lld
+        CC="clang" LD=ld.lld
         AR=llvm-ar AS=llvm-as NM=llvm-nm
         OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip
         CROSS_COMPILE=aarch64-linux-android-
