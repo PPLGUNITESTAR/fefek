@@ -43,8 +43,10 @@ jobs:
         run: |
           DATE=$(date +'%Y%m%d')
           TIME=$(date +'%s')
+          CLOCK=$(date +'%H%M')
           echo "DATE=$DATE" >> $GITHUB_OUTPUT
           echo "TIME=$TIME" >> $GITHUB_OUTPUT
+          echo "CLOCK=$CLOCK" >> $GITHUB_OUTPUT
 
       - name: Setup Compiler Cache (ccache)
         uses: actions/cache@v5.0.4
@@ -108,7 +110,7 @@ jobs:
             rm -rf AnyKernel3
           fi
           git clone https://github.com/riarumoda/AnyKernel3 AnyKernel3 --depth=1
-          
+
           # Cleanup bloated files from AnyKernel3 to ensure kernel zip is as small as possible
           rm -rf AnyKernel3/.git AnyKernel3/.github AnyKernel3/README.md
           find AnyKernel3 -type f -name "placeholder" -delete
@@ -125,14 +127,12 @@ jobs:
 
       - name: Pack kernel with AnyKernel3
         run: |
-          ZIPNAME="Houdini-${{ matrix.build-type }}-weekly-${{ matrix.ksu-type }}-${{ steps.ts.outputs.DATE }}-${{ steps.ts.outputs.TIME }}.zip"
+          ZIPNAME="Houdini-${{ matrix.build-type }}-weekly-${{ matrix.ksu-type }}-${{ steps.ts.outputs.DATE }}-${{ steps.ts.outputs.CLOCK }}.zip"
           cd AnyKernel3
-          # Menggunakan algoritma kompresi deflasi standar (-9)
           zip -rq9 "../$ZIPNAME" ./*
           cd ..
-          
-          # Menggunakan advzip dengan algoritma Zopfli yang jauh lebih agresif untuk menekan ukuran mutlak!
-          echo "Ultra-compressing release ZIP with advzip..."
+
+          echo "Optimizing ZIP compression..."
           advzip -z -4 -i 100 "$ZIPNAME"
 
       - name: Upload artifacts
@@ -170,19 +170,25 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            > [!NOTE]   
-            > - The kernel supports Android 11 to 16.   
-            > - ReSukiSU latest manager can be found in [here](https://resukisu.github.io/guide/install.html#Get-manager).    
-               
-            > [!IMPORTANT]
-            > - "zako" build contains ReSukiSU (Recommended).   
-            > - "zako_susfs" build contains ReSukiSU + SUSFS.   
-            > - "none" build does not contain any KernelSU.   
+            ## 🚀 Houdini Kernel for Sweet
 
-            > [!CAUTION]   
-            > - Always backup your boot & dtbo image first before proceeding!
+            > [!CAUTION]
+            > **Always back up your `boot` and `dtbo` partitions** before attempting to flash!
 
-            ### 📝 Recent Changes
+            ### 📦 Build Variants
+            | Variant | Root Solution | Extra Features |
+            | :--- | :--- | :--- |
+            | 🌟 **`zako`** (Recommended) | **ReSukiSU** | Standard Hook |
+            | 🛡️ **`zako_susfs`** | **ReSukiSU** | **SUSFS** (Enhanced Hide) |
+            | 🧊 **`none`** | *(Unrooted)* | Pure Vanilla |
+
+            > [!NOTE]
+            > - **Compatibility:** Android 11 ➔ Android 16.
+            > - **Manager App:** Download the latest ReSukiSU Manager [**Right Here**](https://resukisu.github.io/guide/install.html#Get-manager).
+
+            ---
+
+            ### 📝 Recent Commits
             ${{ needs.build.outputs.changelog }}
           files: artifacts/**/*.zip
           overwrite_files: true
