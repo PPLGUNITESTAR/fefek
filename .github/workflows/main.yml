@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       branch:
-        description: 'Branch kernel yang akan di-build'
+        description: "Branch kernel yang akan di-build"
         required: true
-        default: 'binder'
+        default: "binder"
 
   schedule:
     - cron: "5 3 * * 0"
@@ -37,7 +37,6 @@ jobs:
           path: android_kernel_xiaomi_sm6150
           fetch-depth: 10
           ref: ${{ github.event.inputs.branch || 'binder' }}
-
 
       - name: Timestamp
         id: ts
@@ -71,7 +70,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            bc build-essential bison flex zip p7zip-full \
+            bc build-essential bison flex zip p7zip-full advancecomp \
             libc6 curl libstdc++6 git wget libssl-dev zstd \
             lld python3 patchutils ccache
 
@@ -109,8 +108,12 @@ jobs:
             rm -rf AnyKernel3
           fi
           git clone https://github.com/riarumoda/AnyKernel3 AnyKernel3 --depth=1
-          # Hapus riwayat git untuk memaksimalkan reduksi ukuran ZIP
-          rm -rf AnyKernel3/.git
+          
+          # Cleanup bloated files from AnyKernel3 to ensure kernel zip is as small as possible
+          rm -rf AnyKernel3/.git AnyKernel3/.github AnyKernel3/README.md
+          find AnyKernel3 -type f -name "placeholder" -delete
+          find AnyKernel3 -type f -name ".gitkeep" -delete
+          find AnyKernel3 -type f -name "*.md" -delete
 
           echo "Copying compiled artifacts to AnyKernel3..."
           cp android_kernel_xiaomi_sm6150/out/arch/arm64/boot/Image.gz AnyKernel3/
@@ -124,9 +127,13 @@ jobs:
         run: |
           ZIPNAME="Houdini-${{ matrix.build-type }}-weekly-${{ matrix.ksu-type }}-${{ steps.ts.outputs.DATE }}-${{ steps.ts.outputs.TIME }}.zip"
           cd AnyKernel3
-          # Menggunakan algoritma kompresi deflasi paling agresif (-9)
+          # Menggunakan algoritma kompresi deflasi standar (-9)
           zip -rq9 "../$ZIPNAME" ./*
           cd ..
+          
+          # Menggunakan advzip dengan algoritma Zopfli yang jauh lebih agresif untuk menekan ukuran mutlak!
+          echo "Ultra-compressing release ZIP with advzip..."
+          advzip -z -4 -i 100 "$ZIPNAME"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
@@ -134,6 +141,13 @@ jobs:
           name: ${{ matrix.build-type }}-${{ matrix.ksu-type }}
           path: |
             *.zip
+
+      - name: Upload Compile Warnings
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: warnings-log-${{ matrix.build-type }}-${{ matrix.ksu-type }}
+          path: android_kernel_xiaomi_sm6150/warnings.txt
 
   release:
     needs: build
