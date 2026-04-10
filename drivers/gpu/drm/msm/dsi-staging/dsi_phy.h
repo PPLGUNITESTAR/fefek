@@ -267,7 +267,7 @@ int dsi_phy_set_clk_freq(struct msm_dsi_phy *phy,
  * Return: error code.
  */
 int dsi_phy_set_timing_params(struct msm_dsi_phy *phy,
-			      u32 *timing, u32 size);
+			      u32 *timing, u32 size, bool commit);
 
 /**
  * dsi_phy_lane_reset() - Reset DSI PHY lanes in case of error
