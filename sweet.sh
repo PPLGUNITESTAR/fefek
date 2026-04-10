@@ -112,7 +112,7 @@ setup_environment() {
         CROSS_COMPILE=aarch64-linux-android-
         CROSS_COMPILE_ARM32=arm-linux-gnueabi-
         CLANG_TRIPLE=aarch64-linux-gnu-
-        KCFLAGS="-O3 -mllvm -polly -mllvm -polly-ast-use-context -mllvm -polly-vectorizer=stripmine"
+        KCFLAGS="-O3 -mllvm -polly -mllvm -polly-ast-use-context -mllvm -polly-vectorizer=stripmine -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast"
     )
 
     success "Environment ready — $THREAD_COUNT threads available"
@@ -172,6 +172,10 @@ apply_device_patches() {
 
     # Append LN8000 config
     echo "CONFIG_CHARGER_LN8000=y" >> "$MAIN_DEFCONFIG"
+
+    # ── Missing Headers ───────────────────────────────────
+    info "Patching missing uaccess header for perf_trace_user..."
+    [ -f arch/arm64/kernel/perf_trace_user.c ] && sed -i '1i #include <linux/uaccess.h>' arch/arm64/kernel/perf_trace_user.c
 
     success "Device patches applied"
 }
