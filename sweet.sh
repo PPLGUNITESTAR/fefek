@@ -2,7 +2,6 @@
 # =============================================================================
 #  PerfNeon Build Script v3.1 — sweet (sm6150/SDM732G)
 #  Maintainer : ArCHDeViL @ EviLZonE
-#  Goals      : Aggressive -O3 | Min file size | Max runtime perf | Fast build
 # =============================================================================
 
 # ── Banner ────────────────────────────────────────────────────────────────────
@@ -114,6 +113,7 @@ setup_environment() {
         CROSS_COMPILE=aarch64-linux-android-
         CROSS_COMPILE_ARM32=arm-linux-gnueabi-
         CLANG_TRIPLE=aarch64-linux-gnu-
+        KCFLAGS="-O3 -mllvm -polly -mllvm -polly-ast-use-context -mllvm -polly-vectorizer=stripmine"
     )
 
     success "Environment ready — $THREAD_COUNT threads available"
@@ -277,10 +277,7 @@ before_compile() {
     echo "CONFIG_LOCALVERSION=\"$KERNEL_NAME\"" >> out/.config
 
     # ── Step 3: Kernel Config API — intentional overrides ────────────────────
-    info "Applying performance + size config overrides..."
-
-    sed -i 's/KBUILD_CFLAGS\s*+= -O2/KBUILD_CFLAGS   += -O3/g' Makefile
-    sed -i 's/KBUILD_CFLAGS\s*+= -Os/KBUILD_CFLAGS   += -O3/g' Makefile
+    info "Applying performance + size config overrides (non-placebo)..."
 
     # [SIZE] Nuke all debug info — biggest single size win
     ./scripts/config --file out/.config \
@@ -290,9 +287,16 @@ before_compile() {
         --disable DEBUG_INFO_DWARF4     \
         --enable  DEBUG_INFO_NONE
 
-    # [SIZE] Strip unused sections & symbols via LTO + linker GC
+    # [SIZE] Strip unused sections & symbols via ThinLTO + linker GC
+    # [PERF] Enable advanced Clang optimizations (ThinLTO, Polly, PGO, BOLT)
     ./scripts/config --file out/.config \
         --enable  LTO_CLANG             \
+        --disable LTO_CLANG_FULL        \
+        --enable  LTO_CLANG_THIN        \
+        --enable  THINLTO               \
+        --enable  LLVM_POLLY            \
+        --enable  PGO_CLANG             \
+        --enable  BOLT_CLANG            \
         --disable MODVERSIONS           \
         --disable MODULE_SIG            \
         --disable MODULE_SIG_FORCE
@@ -361,10 +365,21 @@ phase "Phase 5 · Compilation  ($THREAD_COUNT threads)"
 
 compile_it() {
     info "Launching make with $THREAD_COUNT jobs..."
-    make -j"$THREAD_COUNT" O=out "${MAKE_ARGS[@]}"
-    local rc=$?
-    [ $rc -ne 0 ] && die "Compilation exited with code $rc"
-    success "Compilation finished"
+    # Build kernel and log the output to capture warnings/errors
+    make -j"$THREAD_COUNT" O=out "${MAKE_ARGS[@]}" 2>&1 | tee build.log
+    local rc=${PIPESTATUS[0]}
+    
+    # Ekstrak warnings dan errors lengkap dengan path file ke warnings.txt
+    grep -Eiw "warning:|error:" build.log > warnings.txt || true
+    
+    # Export count agar bisa dibaca fungsi finalize_build
+    export WARN_COUNT=$(grep -ciw "warning:" build.log || true)
+    export ERR_COUNT=$(grep -ciw "error:" build.log || true)
+    
+    rm -f build.log
+
+    [ $rc -ne 0 ] && die "Compilation exited with code $rc (Errors: $ERR_COUNT)"
+    success "Compilation finished (Warnings: $WARN_COUNT, Errors: $ERR_COUNT)"
 }
 
 compile_it
@@ -387,17 +402,24 @@ finalize_build() {
     local SECS=$(( ELAPSED % 60 ))
     local SIZE=$(du -sh "$IMAGE" | cut -f1)
 
+    WARN_COUNT=${WARN_COUNT:-0}
+    ERR_COUNT=${ERR_COUNT:-0}
+
     echo ""
-    echo "╔═══════════════════════════════════════╗"
-    echo "║            BUILD SUCCESSFUL           ║"
-    echo "╠═══════════════════════════════════════╣"
-    printf "║  Kernel  : %-28s║\n" "$KERNEL_NAME"
-    printf "║  Device  : %-28s║\n" "$DEVICE_IMPORT"
-    printf "║  KSU     : %-28s║\n" "$KERNELSU_SELECTOR"
-    printf "║  BBG     : %-28s║\n" "ACTIVE (Enforced)"
-    printf "║  Size    : %-28s║\n" "$SIZE"
-    printf "║  Time    : %dm %ds%-19s║\n" "$MINS" "$SECS" ""
-    echo "╚═══════════════════════════════════════╝"
+    echo -e "\E[1;36m╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮\E[0m"
+    echo -e "\E[1;36m│\E[0m\E[1;32m                 BUILD SUCCESSFUL                    \E[0m\E[1;36m│\E[0m"
+    echo -e "\E[1;36m├━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┤\E[0m"
+    printf  "\E[1;36m│\E[0m  \E[1;37mKernel  :\E[0m \E[1;32m%-41s\E[0m\E[1;36m│\E[0m\n" "$KERNEL_NAME"
+    printf  "\E[1;36m│\E[0m  \E[1;37mDevice  :\E[0m \E[1;33m%-41s\E[0m\E[1;36m│\E[0m\n" "$DEVICE_IMPORT"
+    printf  "\E[1;36m│\E[0m  \E[1;37mKSU     :\E[0m \E[1;35m%-41s\E[0m\E[1;36m│\E[0m\n" "$KERNELSU_SELECTOR"
+    printf  "\E[1;36m│\E[0m  \E[1;37mBBG     :\E[0m \E[1;31m%-41s\E[0m\E[1;36m│\E[0m\n" "ACTIVE (Enforced)"
+    printf  "\E[1;36m│\E[0m  \E[1;37mSize    :\E[0m \E[1;34m%-41s\E[0m\E[1;36m│\E[0m\n" "$SIZE"
+    local TIME_STR="${MINS}m ${SECS}s"
+    printf  "\E[1;36m│\E[0m  \E[1;37mTime    :\E[0m \E[1;32m%-41s\E[0m\E[1;36m│\E[0m\n" "$TIME_STR"
+    echo -e "\E[1;36m├─────────────────────────────────────────────────────┤\E[0m"
+    printf  "\E[1;36m│\E[0m  \E[1;37mErrors  :\E[0m \E[1;31m%-41s\E[0m\E[1;36m│\E[0m\n" "$ERR_COUNT"
+    printf  "\E[1;36m│\E[0m  \E[1;37mWarnings:\E[0m \E[1;33m%-41s\E[0m\E[1;36m│\E[0m\n" "$WARN_COUNT"
+    echo -e "\E[1;36m╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯\E[0m"
     echo ""
     ls -alh "$IMAGE"
 }
