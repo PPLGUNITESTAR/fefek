@@ -2436,7 +2436,7 @@ static struct snd_kcontrol_new dbri_controls[] = {
 	 .put   = snd_cs4215_put_volume,
 	 .private_value = DBRI_REC,
 	 },
-	/* FIXME: mic/line switch */
+	CS4215_SINGLE("Mic/Line switch", 4, 5, 1, 0)
 	CS4215_SINGLE("Line in switch", 2, 4, 1, 0)
 	CS4215_SINGLE("High Pass Filter switch", 5, 7, 1, 0)
 	CS4215_SINGLE("Monitor Volume", 3, 4, 0xf, 1)
