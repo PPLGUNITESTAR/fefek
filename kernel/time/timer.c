@@ -553,13 +553,12 @@ trigger_dyntick_cpu(struct timer_base *base, struct timer_list *timer)
 		return;
 
 	/*
-	 * TODO: This wants some optimizing similar to the code below, but we
-	 * will do that when we switch from push to pull for deferrable timers.
+	 * Deferrable timers are not supposed to wake up the CPU, but we
+	 * still want to kick a nohz_full CPU.
 	 */
 	if (timer->flags & TIMER_DEFERRABLE) {
-		if (tick_nohz_full_cpu(base->cpu))
-			wake_up_nohz_cpu(base->cpu);
-		return;
+		if (!tick_nohz_full_cpu(base->cpu))
+			return;
 	}
 
 	/*
@@ -579,7 +578,7 @@ trigger_dyntick_cpu(struct timer_base *base, struct timer_list *timer)
 	 * wheel:
 	 */
 	base->next_expiry = timer->expires;
-		wake_up_nohz_cpu(base->cpu);
+	wake_up_nohz_cpu(base->cpu);
 }
 
 static void
