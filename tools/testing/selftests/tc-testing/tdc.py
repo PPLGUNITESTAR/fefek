@@ -103,6 +103,10 @@ def test_runner(filtered_tests, args):
     index = 1
     tap = str(index) + ".." + str(tcount) + "\n"
 
+    # Pre-compile regex patterns to avoid redundant compilation in the loop
+    # and to cache patterns shared between multiple tests.
+    pattern_cache = {}
+
     for tidx in testlist:
         result = True
         tresult = ""
@@ -118,9 +122,12 @@ def test_runner(filtered_tests, args):
             print("exit:", exit_code, int(tidx["expExitCode"]))
             print(procout)
         else:
-            match_pattern = re.compile(str(tidx["matchPattern"]), re.DOTALL)
+            match_pattern = str(tidx["matchPattern"])
+            if match_pattern not in pattern_cache:
+                pattern_cache[match_pattern] = re.compile(match_pattern, re.DOTALL)
+
             (p, procout) = exec_cmd(tidx["verifyCmd"])
-            match_index = re.findall(match_pattern, procout)
+            match_index = re.findall(pattern_cache[match_pattern], procout)
             if len(match_index) != int(tidx["matchCount"]):
                 result = False
 
