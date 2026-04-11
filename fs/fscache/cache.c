@@ -27,6 +27,7 @@ static LIST_HEAD(fscache_cache_tag_list);
 struct fscache_cache_tag *__fscache_lookup_cache_tag(const char *name)
 {
 	struct fscache_cache_tag *tag, *xtag;
+	size_t len;
 
 	/* firstly check for the existence of the tag under read lock */
 	down_read(&fscache_addremove_sem);
@@ -42,13 +43,14 @@ struct fscache_cache_tag *__fscache_lookup_cache_tag(const char *name)
 	up_read(&fscache_addremove_sem);
 
 	/* the tag does not exist - create a candidate */
-	xtag = kzalloc(sizeof(*xtag) + strlen(name) + 1, GFP_KERNEL);
+	len = strlen(name);
+	xtag = kzalloc(sizeof(*xtag) + len + 1, GFP_KERNEL);
 	if (!xtag)
 		/* return a dummy tag if out of memory */
 		return ERR_PTR(-ENOMEM);
 
 	atomic_set(&xtag->usage, 1);
-	strcpy(xtag->name, name);
+	memcpy(xtag->name, name, len);
 
 	/* write lock, search again and add if still not present */
 	down_write(&fscache_addremove_sem);
