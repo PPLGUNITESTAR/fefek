@@ -1809,6 +1809,7 @@ static void reception_complete_intr(struct snd_dbri *dbri, int pipe)
 	struct dbri_streaminfo *info;
 	int rd = dbri->pipes[pipe].desc;
 	s32 status;
+	int r_status;
 
 	if (rd < 0 || rd >= DBRI_NO_DESCS) {
 		printk(KERN_ERR "DBRI: invalid rd on pipe %d\n", pipe);
@@ -1822,7 +1823,20 @@ static void reception_complete_intr(struct snd_dbri *dbri, int pipe)
 	info = &dbri->stream_info[DBRI_REC];
 	info->offset += DBRI_RD_CNT(status);
 
-	/* FIXME: Check status */
+	r_status = DBRI_RD_STATUS(status);
+
+	if (r_status & (DBRI_RD_BBC | DBRI_RD_ABT | DBRI_RD_OVRN) ||
+	    (r_status & DBRI_RD_CRC)) {
+		dprintk(D_INT, "DBRI: Receive error: status 0x%02x\n", r_status);
+		if (r_status & DBRI_RD_BBC)
+			printk(KERN_ERR "DBRI: Bad byte received\n");
+		if (r_status & DBRI_RD_ABT)
+			printk(KERN_ERR "DBRI: Frame aborted\n");
+		if (r_status & DBRI_RD_OVRN)
+			printk(KERN_ERR "DBRI: Receive overrun\n");
+		if (r_status & DBRI_RD_CRC)
+			printk(KERN_ERR "DBRI: CRC error\n");
+	}
 
 	dprintk(D_INT, "Recv RD %d, status 0x%02x, len %d\n",
 		rd, DBRI_RD_STATUS(status), DBRI_RD_CNT(status));
