@@ -34,6 +34,12 @@ static bool page_owner_disabled =
 	!IS_ENABLED(CONFIG_PAGE_OWNER_ENABLE_DEFAULT);
 DEFINE_STATIC_KEY_FALSE(page_owner_inited);
 
+struct page_owner_cpu {
+	unsigned long entries[4][PAGE_OWNER_STACK_DEPTH];
+	int depth;
+};
+static DEFINE_PER_CPU(struct page_owner_cpu, page_owner_cpu);
+
 static depot_stack_handle_t dummy_handle;
 static depot_stack_handle_t failure_handle;
 static depot_stack_handle_t early_handle;
@@ -146,14 +152,25 @@ static inline bool check_recursive_alloc(struct stack_trace *trace,
 
 static noinline depot_stack_handle_t save_stack(gfp_t flags)
 {
-	unsigned long entries[PAGE_OWNER_STACK_DEPTH];
-	struct stack_trace trace = {
-		.nr_entries = 0,
-		.entries = entries,
-		.max_entries = PAGE_OWNER_STACK_DEPTH,
-		.skip = 2
-	};
+	unsigned long irq_flags;
 	depot_stack_handle_t handle;
+	struct stack_trace trace;
+	struct page_owner_cpu *cpu_data;
+	int depth;
+
+	local_irq_save(irq_flags);
+	cpu_data = this_cpu_ptr(&page_owner_cpu);
+	depth = cpu_data->depth;
+	if (unlikely(depth >= 4)) {
+		local_irq_restore(irq_flags);
+		return dummy_handle;
+	}
+	cpu_data->depth++;
+
+	trace.nr_entries = 0;
+	trace.entries = cpu_data->entries[depth];
+	trace.max_entries = PAGE_OWNER_STACK_DEPTH;
+	trace.skip = 2;
 
 	save_stack_trace(&trace);
 	if (trace.nr_entries != 0 &&
@@ -167,10 +184,17 @@ static noinline depot_stack_handle_t save_stack(gfp_t flags)
 	 * if we don't catch it. There is still not enough memory in stackdepot
 	 * so it would try to allocate memory again and loop forever.
 	 */
-	if (check_recursive_alloc(&trace, _RET_IP_))
+	if (check_recursive_alloc(&trace, _RET_IP_)) {
+		cpu_data->depth--;
+		local_irq_restore(irq_flags);
 		return dummy_handle;
+	}
 
-	handle = depot_save_stack(&trace, flags);
+	handle = depot_save_stack(&trace, flags & ~__GFP_DIRECT_RECLAIM);
+
+	cpu_data->depth--;
+	local_irq_restore(irq_flags);
+
 	if (!handle)
 		handle = failure_handle;
 
@@ -356,17 +380,24 @@ print_page_owner(char __user *buf, size_t count, unsigned long pfn,
 	int ret;
 	int pageblock_mt, page_mt;
 	char *kbuf;
-	unsigned long entries[PAGE_OWNER_STACK_DEPTH];
-	struct stack_trace trace = {
-		.nr_entries = 0,
-		.entries = entries,
-		.max_entries = PAGE_OWNER_STACK_DEPTH,
-		.skip = 0
-	};
+	unsigned long *entries;
+	struct stack_trace trace;
 
 	kbuf = kmalloc(count, GFP_KERNEL);
 	if (!kbuf)
 		return -ENOMEM;
+
+	entries = kmalloc_array(PAGE_OWNER_STACK_DEPTH, sizeof(unsigned long),
+				GFP_KERNEL);
+	if (!entries) {
+		kfree(kbuf);
+		return -ENOMEM;
+	}
+
+	trace.nr_entries = 0;
+	trace.entries = entries;
+	trace.max_entries = PAGE_OWNER_STACK_DEPTH;
+	trace.skip = 0;
 
 	ret = snprintf(kbuf, count,
 			"Page allocated via order %u, mask %#x(%pGg), pid %d, ts %llu ns\n",
@@ -411,10 +442,12 @@ print_page_owner(char __user *buf, size_t count, unsigned long pfn,
 	if (copy_to_user(buf, kbuf, ret))
 		ret = -EFAULT;
 
+	kfree(entries);
 	kfree(kbuf);
 	return ret;
 
 err:
+	kfree(entries);
 	kfree(kbuf);
 	return -ENOMEM;
 }
@@ -423,16 +456,13 @@ void __dump_page_owner(struct page *page)
 {
 	struct page_ext *page_ext = lookup_page_ext(page);
 	struct page_owner *page_owner;
-	unsigned long entries[PAGE_OWNER_STACK_DEPTH];
-	struct stack_trace trace = {
-		.nr_entries = 0,
-		.entries = entries,
-		.max_entries = PAGE_OWNER_STACK_DEPTH,
-		.skip = 0
-	};
+	struct stack_trace trace;
 	depot_stack_handle_t handle;
 	gfp_t gfp_mask;
 	int mt;
+	struct page_owner_cpu *cpu_data;
+	int depth;
+	unsigned long irq_flags;
 
 	if (unlikely(!page_ext)) {
 		pr_alert("There is not page extension available.\n");
@@ -454,6 +484,21 @@ void __dump_page_owner(struct page *page)
 		return;
 	}
 
+	local_irq_save(irq_flags);
+	cpu_data = this_cpu_ptr(&page_owner_cpu);
+	depth = cpu_data->depth;
+	if (unlikely(depth >= 4)) {
+		pr_alert("page_owner info cannot be printed (recursion)\n");
+		local_irq_restore(irq_flags);
+		return;
+	}
+	cpu_data->depth++;
+
+	trace.nr_entries = 0;
+	trace.entries = cpu_data->entries[depth];
+	trace.max_entries = PAGE_OWNER_STACK_DEPTH;
+	trace.skip = 0;
+
 	depot_fetch_stack(handle, &trace);
 	pr_alert("page allocated via order %u, migratetype %s, gfp_mask %#x(%pGg), pid %d, ts %llu ns\n",
 		 page_owner->order, migratetype_names[mt], gfp_mask, &gfp_mask,
@@ -463,6 +508,9 @@ void __dump_page_owner(struct page *page)
 	if (page_owner->last_migrate_reason != -1)
 		pr_alert("page has been migrated, last migrate reason: %s\n",
 			migrate_reason_names[page_owner->last_migrate_reason]);
+
+	cpu_data->depth--;
+	local_irq_restore(irq_flags);
 }
 
 static ssize_t
