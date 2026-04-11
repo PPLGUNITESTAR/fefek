@@ -372,16 +372,16 @@
 
 		CPU_COST_0: core-cost0 {
 			busy-cost-data = <
-				300000	10
-				576000	18
-				768000	23
-				1017600	36
-				1248000	52
-				1324800	67
-				1497600	76
-				1612800	92
-				1708800	113
-				1804800	119
+				300000  146
+				576000  164
+				768000  176
+				1017600 382 // 191 * 2
+				1248000 439 // 209 * 2.1
+				1324800 469 // 213 * 2.2
+				1497600 515 // 224 * 2.3
+				1612800 552 // 230 * 2.4
+				1708800 588 // 235 * 2.5
+				1804800 628 // 251 * 2.5
 			>;
 			idle-cost-data = <
 				16 12 8 6
@@ -390,21 +390,20 @@
 
 		CPU_COST_1: core-cost1 {
 			busy-cost-data = <
-				300000	166
-				652800	242
-				806400	293
-				979200	424
-				1094400	470
-				1209600	621
-				1324800	676
-				1555200	973
-				1708800	1060
-				1843200	1298
-				1939200	1362
-				2169600	1801
-				2208000	2000
-				2361600	2326
-				2400000	2568
+				300000  208
+				652800  266
+				806400  291
+				979200  668 // 334 * 2
+				1094400 740 // 370 * 2
+				1209600 830 // 395 * 2.1
+				1324800 950 // 432 * 2.2
+				1555200 1247 // 542 * 2.3
+				1708800 1493 // 622 * 2.4
+				1843200 1753 // 701 * 2.5
+				1939200 2325 // 775 * 3
+				2169600 3495 // 998 * 3.5
+				2208000 3810 // 1016 * 3.75
+				2304000 4404 // 1101 * 4
 			>;
 			idle-cost-data = <
 				100 80 60 40
@@ -444,8 +443,7 @@
 				1939200	50
 				2169600	60
 				2208000	61
-				2361600	62
-				2400000	63
+				2304000	62
 			>;
 			idle-cost-data = <
 				5 4 3 2 1
@@ -459,7 +457,7 @@
 	};
 
 	chosen {
-		bootargs = "rcu_nocbs=0-7 noirqdebug kpti=off mitigations=off nosoftlockup mce=ignore_ce";
+		bootargs = "rcu_nocbs=0-7 noirqdebug nodebugmon cgroup.memory=nokmem,nosocket kpti=off mitigations=off nosoftlockup mce=ignore_ce";
 	};
 
 	soc: soc { };
@@ -1556,6 +1554,7 @@
 		qcom,adsp-remoteheap-vmid = <22 37>;
 		qcom,fastrpc-adsp-audio-pdr;
 		qcom,fastrpc-adsp-sensors-pdr;
+		qcom,qos-cores = <0 1 2 3 4 5>;
 
 		qcom,msm_fastrpc_compute_cb1 {
 			compatible = "qcom,msm-fastrpc-compute-cb";
@@ -2187,7 +2186,7 @@
 		/* PM QoS */
 		qcom,pm-qos-irq-type = "affine_irq";
 		qcom,pm-qos-irq-latency = <67 67>;
-		qcom,pm-qos-cpu-groups = <0x3f 0xc0>;
+		qcom,pm-qos-cpu-groups = <0x7f 0x80>;
 		qcom,pm-qos-legacy-latency-us = <67 67>, <67 67>;
 
 		clocks = <&clock_gcc GCC_SDCC2_AHB_CLK>,
@@ -3267,7 +3266,7 @@
 #include "sdmmagpie-gpu.dtsi"
 
 &usb0 {
-	extcon = <&pm6150_pdphy>, <&pm6150_charger>, <&eud>;
+	extcon = <&pm6150_pdphy>, <&pm6150_charger>;
 };
 
 &msm_vidc0 {
