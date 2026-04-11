@@ -1,0 +1,164 @@
+name: Sweet
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch kernel yang akan di-build"
+        required: true
+        default: "binder"
+
+  schedule:
+    - cron: "5 3 * * 0"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    outputs:
+      timestamp: ${{ steps.ts.outputs.TIME }}
+      date: ${{ steps.ts.outputs.DATE }}
+      changelog: ${{ steps.extract_info.outputs.CHANGELOG }}
+    strategy:
+      matrix:
+        build-type: [sweet]
+        ksu-type: [zako, zako_susfs, none]
+
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          path: android_kernel_xiaomi_sm6150
+          fetch-depth: 10
+          ref: ${{ github.event.inputs.branch || 'binder' }}
+
+      - name: Timestamp
+        id: ts
+        run: |
+          DATE=$(date +'%Y%m%d')
+          TIME=$(date +'%s')
+          CLOCK=$(date +'%H%M')
+          echo "DATE=$DATE" >> $GITHUB_OUTPUT
+          echo "TIME=$TIME" >> $GITHUB_OUTPUT
+          echo "CLOCK=$CLOCK" >> $GITHUB_OUTPUT
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            bc build-essential bison flex zip p7zip-full advancecomp \
+            libc6 curl libstdc++6 git wget libssl-dev zstd \
+            lld python3 patchutils
+
+      - name: Preparing kernel sources
+        run: |
+          echo "Setting permissions for buildscript..."
+          chmod +x ./android_kernel_xiaomi_sm6150/sweet.sh
+
+      - name: Extract Changelog
+        id: extract_info
+        run: |
+          cd android_kernel_xiaomi_sm6150
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          git log -n 10 --pretty=format:"- %h: %s" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Compile the kernel
+        run: |
+          echo "Determining KSU type..."
+          echo "Starting to compile..."
+          cd android_kernel_xiaomi_sm6150/
+          ./sweet.sh sweet ${{ matrix.ksu-type }}
+          cd ..
+
+      - name: Preparing AnyKernel3 sources
+        run: |
+          if [ -d "$PWD/AnyKernel3" ]; then
+            rm -rf AnyKernel3
+          fi
+          git clone https://github.com/riarumoda/AnyKernel3 AnyKernel3 --depth=1
+
+          # Cleanup bloated files from AnyKernel3 to ensure kernel zip is as small as possible
+          rm -rf AnyKernel3/.git AnyKernel3/.github AnyKernel3/README.md
+          find AnyKernel3 -type f -name "placeholder" -delete
+          find AnyKernel3 -type f -name ".gitkeep" -delete
+          find AnyKernel3 -type f -name "*.md" -delete
+
+          echo "Copying compiled artifacts to AnyKernel3..."
+          cp android_kernel_xiaomi_sm6150/out/arch/arm64/boot/Image.gz AnyKernel3/
+          cp android_kernel_xiaomi_sm6150/out/arch/arm64/boot/dtb.img AnyKernel3/
+          cp android_kernel_xiaomi_sm6150/out/arch/arm64/boot/dtbo.img AnyKernel3/
+
+          echo "Patching AnyKernel3 banner..."
+          sed -i 's/sweet (sm6150)/sweet (sm6150)/g' AnyKernel3/banner
+
+      - name: Pack kernel with AnyKernel3
+        run: |
+          ZIPNAME="Houdini-${{ matrix.build-type }}-weekly-${{ matrix.ksu-type }}-${{ steps.ts.outputs.DATE }}-${{ steps.ts.outputs.CLOCK }}.zip"
+          cd AnyKernel3
+          zip -rq9 "../$ZIPNAME" ./*
+          cd ..
+
+          echo "Optimizing ZIP compression..."
+          advzip -z -4 -i 100 "$ZIPNAME"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.build-type }}-${{ matrix.ksu-type }}
+          path: |
+            *.zip
+
+      - name: Upload Compile Warnings
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: warnings-log-${{ matrix.build-type }}-${{ matrix.ksu-type }}
+          path: android_kernel_xiaomi_sm6150/warnings.txt
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v8.0.1
+        with:
+          path: ./artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2.6.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: kernel-weekly-${{ needs.build.outputs.timestamp }}
+          name: Weekly - ${{ needs.build.outputs.date }}
+          draft: false
+          prerelease: false
+          body: |
+            ## 🚀 Houdini Kernel for Sweet
+
+            > [!CAUTION]
+            > **Always back up your `boot` and `dtbo` partitions** before attempting to flash!
+
+            ### 📦 Build Variants
+            | Variant | Root Solution | Extra Features |
+            | :--- | :--- | :--- |
+            | 🌟 **`zako`** (Recommended) | **ReSukiSU** | Standard Hook |
+            | 🛡️ **`zako_susfs`** | **ReSukiSU** | **SUSFS** (Enhanced Hide) |
+            | 🧊 **`none`** | *(Unrooted)* | Pure Vanilla |
+
+            > [!NOTE]
+            > - **Compatibility:** Android 11 ➔ Android 16.
+            > - **Manager App:** Download the latest ReSukiSU Manager [**Right Here**](https://resukisu.github.io/guide/install.html#Get-manager).
+
+            ---
+
+            ### 📝 Recent Commits
+            ${{ needs.build.outputs.changelog }}
+          files: artifacts/**/*.zip
+          overwrite_files: true
