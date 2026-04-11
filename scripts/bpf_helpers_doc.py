@@ -393,29 +393,33 @@ SEE ALSO
 
 ###############################################################################
 
-# If script is launched from scripts/ from kernel tree and can access
-# ../include/uapi/linux/bpf.h, use it as a default name for the file to parse,
-# otherwise the --filename argument will be required from the command line.
-script = os.path.abspath(sys.argv[0])
-linuxRoot = os.path.dirname(os.path.dirname(script))
-bpfh = os.path.join(linuxRoot, 'include/uapi/linux/bpf.h')
+def main():
+    # If script is launched from scripts/ from kernel tree and can access
+    # ../include/uapi/linux/bpf.h, use it as a default name for the file to parse,
+    # otherwise the --filename argument will be required from the command line.
+    script = os.path.abspath(sys.argv[0])
+    linuxRoot = os.path.dirname(os.path.dirname(script))
+    bpfh = os.path.join(linuxRoot, 'include/uapi/linux/bpf.h')
 
-argParser = argparse.ArgumentParser(description="""
-Parse eBPF header file and generate documentation for eBPF helper functions.
-The RST-formatted output produced can be turned into a manual page with the
-rst2man utility.
-""")
-if (os.path.isfile(bpfh)):
-    argParser.add_argument('--filename', help='path to include/uapi/linux/bpf.h',
-                           default=bpfh)
-else:
-    argParser.add_argument('--filename', help='path to include/uapi/linux/bpf.h')
-args = argParser.parse_args()
+    argParser = argparse.ArgumentParser(description="""
+    Parse eBPF header file and generate documentation for eBPF helper functions.
+    The RST-formatted output produced can be turned into a manual page with the
+    rst2man utility.
+    """)
+    if (os.path.isfile(bpfh)):
+        argParser.add_argument('--filename', help='path to include/uapi/linux/bpf.h',
+                               default=bpfh)
+    else:
+        argParser.add_argument('--filename', help='path to include/uapi/linux/bpf.h')
+    args = argParser.parse_args()
 
-# Parse file.
-headerParser = HeaderParser(args.filename)
-headerParser.run()
+    # Parse file.
+    headerParser = HeaderParser(args.filename)
+    headerParser.run()
 
-# Print formatted output to standard output.
-printer = PrinterRST(headerParser.helpers)
-printer.print_all()
+    # Print formatted output to standard output.
+    printer = PrinterRST(headerParser.helpers)
+    printer.print_all()
+
+if __name__ == '__main__':
+    main()
