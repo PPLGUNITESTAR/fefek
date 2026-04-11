@@ -447,8 +447,9 @@ int DMAbuf_sync(int dev)
 		       adev->dmap_out->qlen && adev->dmap_out->underrun_count == 0) {
 			long t = dmabuf_timeout(dmap);
 			spin_unlock_irqrestore(&dmap->lock,flags);
-			/* FIXME: not safe may miss events */
-			t = oss_broken_sleep_on(&adev->out_sleeper, t);
+			t = wait_event_interruptible_timeout(adev->out_sleeper,
+				(!adev->dmap_out->qlen ||
+				 adev->dmap_out->underrun_count != 0), t);
 			spin_lock_irqsave(&dmap->lock,flags);
 			if (!t) {
 				adev->dmap_out->flags &= ~DMA_SYNCING;
@@ -468,8 +469,9 @@ int DMAbuf_sync(int dev)
 			while (!signal_pending(current) &&
 			       adev->d->local_qlen(dev)){
 				spin_unlock_irqrestore(&dmap->lock,flags);
-				oss_broken_sleep_on(&adev->out_sleeper,
-							       dmabuf_timeout(dmap));
+				wait_event_interruptible_timeout(adev->out_sleeper,
+					(!adev->d->local_qlen(dev)),
+					dmabuf_timeout(dmap));
 				spin_lock_irqsave(&dmap->lock,flags);
 			}
 		}
