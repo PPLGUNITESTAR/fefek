@@ -164,7 +164,8 @@ struct soundbus_dev {
 	int (*attach_codec)(struct soundbus_dev *dev, struct snd_card *card,
 			    struct codec_info *ci, void *data);
 	void (*detach_codec)(struct soundbus_dev *dev, void *data);
-	/* TODO: suspend/resume */
+	int (*suspend)(struct soundbus_dev *dev, pm_message_t state);
+	int (*resume)(struct soundbus_dev *dev);
 
 	/* private for the soundbus provider */
 	struct list_head codec_list;
@@ -187,6 +188,9 @@ struct soundbus_driver {
 
 	int	(*probe)(struct soundbus_dev* dev);
 	int	(*remove)(struct soundbus_dev* dev);
+
+	int	(*suspend)(struct soundbus_dev* dev, pm_message_t state);
+	int	(*resume)(struct soundbus_dev* dev);
 
 	int	(*shutdown)(struct soundbus_dev* dev);
 
