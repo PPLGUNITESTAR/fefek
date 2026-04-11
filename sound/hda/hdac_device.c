@@ -1002,7 +1002,9 @@ bool snd_hdac_is_supported_format(struct hdac_device *codec, hda_nid_t nid,
 			return false;
 		}
 	} else {
-		/* FIXME: check for float32 and AC3? */
+		/* check for float32 and AC3 */
+		if (!(stream & (AC_SUPFMT_FLOAT32 | AC_SUPFMT_AC3)))
+			return false;
 	}
 
 	return true;
