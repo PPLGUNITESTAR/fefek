@@ -605,7 +605,7 @@ static int smack_sb_copy_data(char *orig, char *smackopts)
 		strcat(dp, cp);
 	}
 
-	strcpy(orig, otheropts);
+	strlcpy(orig, otheropts, PAGE_SIZE);
 	free_page((unsigned long)otheropts);
 
 	return 0;
