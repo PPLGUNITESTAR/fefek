@@ -73,9 +73,15 @@ lx-symbols command."""
 
     def _update_module_files(self):
         self.module_files = []
+        visited = set()
         for path in self.module_paths:
             gdb.write("scanning for modules in {0}\n".format(path))
             for root, dirs, files in os.walk(path):
+                abs_root = os.path.abspath(root)
+                if abs_root in visited:
+                    dirs[:] = []
+                    continue
+                visited.add(abs_root)
                 for name in files:
                     if name.endswith(".ko"):
                         self.module_files.append(root + "/" + name)
