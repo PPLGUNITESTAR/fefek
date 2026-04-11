@@ -75,7 +75,7 @@ static const u64 m63   = UINT64_C(0x7fffffffffffffff);	/* 63-bit mask       */
 static const u64 m64   = UINT64_C(0xffffffffffffffff);	/* 64-bit mask       */
 static const u64 mpoly = UINT64_C(0x1fffffff1fffffff);	/* Poly key mask     */
 
-#define pe64_to_cpup le64_to_cpup		/* Prefer little endian */
+#define pe64_to_cpup get_unaligned_le64		/* Prefer little endian */
 
 #ifdef __LITTLE_ENDIAN
 #define INDEX_HIGH 1
@@ -503,7 +503,6 @@ static int vmac_update(struct shash_desc *desc, const u8 *p, unsigned int len)
 
 	if (len >= VMAC_NHBYTES) {
 		n = round_down(len, VMAC_NHBYTES);
-		/* TODO: 'p' may be misaligned here */
 		vhash_blocks(tctx, dctx, (const __le64 *)p, n / VMAC_NHBYTES);
 		p += n;
 		len -= n;
