@@ -1,21 +1,31 @@
 #!/bin/bash
 # =============================================================================
-#  PerfNeon Build Script v3.1 — sweet (sm6150/SDM732G)
-#  Maintainer : ArCHDeViL @ EviLZonE
+#  Houdini Build Script v3.1 — sweet (sm6150/SDM732G)
+#  Maintainer : 0xArCHDeViL @ EviLZonE
 # =============================================================================
 
-# ── Banner ────────────────────────────────────────────────────────────────────
-echo ""
-echo "╔═══════════════════════════════════════════════════════╗"
-echo "║   ____            __   _   _                          ║"
-echo "║  |  _ \ ___ _ __ / _| | \ | | ___  ___  _ __          ║"
-echo "║  | |_) / _ \ '__| |_  |  \| |/ _ \/ _ \| '_ \         ║"
-echo "║  |  __/  __/ |  |  _| | |\  |  __/ (_) | | | |        ║"
-echo "║  |_|   \___|_|  |_|   |_| \_|\___|\___/|_| |_|        ║"
-echo "║                                                       ║"
-echo "║            PerfNeon Build Script v3.1                 ║"
-echo "╚═══════════════════════════════════════════════════════╝"
-echo ""
+# Color aliases — used only in banner, harmless to global scope
+_C="\033[0m" _R="\033[1;31m" _G="\033[1;32m" _Y="\033[1;33m" _M="\033[1;35m" _CY="\033[1;36m" _W="\033[1;37m" _D="\033[0;90m"
+_banner() {
+  local B="${_M}" E="${_C}"
+  echo ""
+  echo -e "${B}   -----------------------------------------------${E}"
+  echo -e "${_W}      _  _  _____  _   _  ____  ___  _   _  ___ ${E}"
+  echo -e "${_W}     | || ||  _  || | | ||  _ \|_ _|| \ | ||_ _|${E}"
+  echo -e "${_W}     | __ || |_| || |_| || | | || | |  \| | | | ${E}"
+  echo -e "${_W}     |_||_||_____| \___/ |____/|___||_|\__| |_| ${E}"
+  echo -e "             ${_W}K    E    R    N    E    L${E}"
+  echo -e "${B}   -----------------------------------------------${E}"
+  echo -e "    ${_Y}[   GOD'S IN HIS HEAVEN. ALL'S RIGHT WITH   ]${E}"
+  echo -e "    ${_Y}[              THE WORLD.                   ]${E}"
+  echo -e "${B}   -----------------------------------------------${E}"
+  echo -e "    ${_D}Maintainer : ${_M}0xArCHDeViL${E}"
+  echo -e "    ${_D}Device     : ${_G}sweet (sm6150 / SDM732G)${E}"
+  echo -e "    ${_D}Toolchain  : ${_CY}Neutron Clang${E}"
+  echo -e "${B}   -----------------------------------------------${E}"
+  echo ""
+}
+_banner
 
 # ── Timing ────────────────────────────────────────────────────────────────────
 BUILD_START=$(date +%s)
@@ -361,7 +371,7 @@ before_compile() {
     git config user.email "$GIT_EMAIL" &>/dev/null
     git config user.name  "$GIT_NAME"  &>/dev/null
     git add . &>/dev/null
-    git commit -m "build: pre-compile setup [v3.1 · PerfNeon]" &>/dev/null
+    git commit -m "build: pre-compile setup [v3.1 · Houdini]" &>/dev/null
 
     success "Pre-compile configuration done"
 }
