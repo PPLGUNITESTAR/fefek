@@ -591,9 +591,8 @@ int DMAbuf_getrdbuffer(int dev, char **buf, int *len, int dontblock)
 		spin_unlock_irqrestore(&dmap->lock,flags);
 		timeout = oss_broken_sleep_on(&adev->in_sleeper, timeout);
 		if (!timeout) {
-			/* FIXME: include device name */
 			err = -EIO;
-			printk(KERN_WARNING "Sound: DMA (input) timed out - IRQ/DRQ config error?\n");
+			printk(KERN_WARNING "Sound: %s: DMA (input) timed out - IRQ/DRQ config error?\n", adev->name);
 			dma_reset_input(dev);
 		} else
 			err = -EINTR;
@@ -771,7 +770,7 @@ static int output_sleep(int dev, int dontblock)
 		timeout_value = MAX_SCHEDULE_TIMEOUT;
 	timeout_value = oss_broken_sleep_on(&adev->out_sleeper, timeout_value);
 	if (timeout != MAX_SCHEDULE_TIMEOUT && !timeout_value) {
-		printk(KERN_WARNING "Sound: DMA (output) timed out - IRQ/DRQ config error?\n");
+		printk(KERN_WARNING "Sound: %s: DMA (output) timed out - IRQ/DRQ config error?\n", adev->name);
 		dma_reset_output(dev);
 	} else {
 		if (signal_pending(current))
