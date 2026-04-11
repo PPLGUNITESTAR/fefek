@@ -1169,7 +1169,7 @@ static void lynxfb_pci_remove(struct pci_dev *pdev)
 static int __init lynxfb_setup(char *options)
 {
 	int len;
-	char *opt, *tmp;
+	char *opt;
 
 	if (!options || !*options) {
 		pr_warn("no options.\n");
@@ -1182,8 +1182,6 @@ static int __init lynxfb_setup(char *options)
 	g_settings = kzalloc(len, GFP_KERNEL);
 	if (!g_settings)
 		return -ENOMEM;
-
-	tmp = g_settings;
 
 	/*
 	 * Notes:
@@ -1203,12 +1201,9 @@ static int __init lynxfb_setup(char *options)
 		} else if (!strncmp(opt, "dual", strlen("dual"))) {
 			g_dualview = 1;
 		} else {
-			strcat(tmp, opt);
-			tmp += strlen(opt);
+			strlcat(g_settings, opt, len);
 			if (options)
-				*tmp++ = ':';
-			else
-				*tmp++ = 0;
+				strlcat(g_settings, ":", len);
 		}
 	}
 
