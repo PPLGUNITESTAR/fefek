@@ -82,7 +82,7 @@ int sound_install_audiodrv(int vers, char *name, struct audio_driver *driver,
 		return -ENOMEM;
 	}
 	init_waitqueue_head(&op->in_sleeper);
-	init_waitqueue_head(&op->out_sleeper);	
+	init_waitqueue_head(&op->out_sleeper);
 	init_waitqueue_head(&op->poll_sleeper);
 	if (driver_size < sizeof(struct audio_driver))
 		memset((char *) d, 0, sizeof(struct audio_driver));
@@ -123,7 +123,7 @@ int sound_install_mixer(int vers, char *name, struct mixer_operations *driver,
 		printk(KERN_ERR "Sound: Incompatible mixer driver for %s\n", name);
 		return -EINVAL;
 	}
-	
+
 	op = vzalloc(sizeof(struct mixer_operations));
 	if (op == NULL) {
 		printk(KERN_ERR "Sound: Can't allocate mixer driver for (%s)\n", name);
@@ -150,7 +150,7 @@ void sound_unload_audiodev(int dev)
 EXPORT_SYMBOL(sound_unload_audiodev);
 
 static int sound_alloc_audiodev(void)
-{ 
+{
 	int i = register_sound_dsp(&oss_sound_fops, -1);
 	if(i==-1)
 		return i;
@@ -217,10 +217,7 @@ EXPORT_SYMBOL(sound_alloc_timerdev);
 void sound_unload_mixerdev(int dev)
 {
 	if (dev != -1) {
-		if (mixer_devs[dev]) {
-			vfree(mixer_devs[dev]);
-			mixer_devs[dev] = NULL;
-		}
+		mixer_devs[dev] = NULL;
 		unregister_sound_mixer(dev<<4);
 		num_mixers--;
 	}
@@ -249,4 +246,3 @@ void sound_unload_timerdev(int dev)
 		sound_timer_devs[dev] = NULL;
 }
 EXPORT_SYMBOL(sound_unload_timerdev);
-
