@@ -176,6 +176,16 @@ def main():
     else:
         undefined, defined = check_symbols(args.ignore)
 
+    # find commits for all undefined symbols
+    commits_per_symbol = {}
+    if args.find:
+        pool = Pool(cpu_count(), init_worker)
+        arglist = [(symbol, args.diff) for symbol in sorted(undefined)]
+        res_list = pool.map(find_commits_helper, arglist)
+        commits_per_symbol = dict(res_list)
+        pool.close()
+        pool.join()
+
     # now print the output
     for symbol in sorted(undefined):
         print(red(symbol))
@@ -192,7 +202,7 @@ def main():
 
         if args.find:
             print("%s:" % yel("Commits changing symbol"))
-            commits = find_commits(symbol, args.diff)
+            commits = commits_per_symbol.get(symbol, [])
             if commits:
                 for commit in commits:
                     commit = commit.split(" ", 1)
@@ -233,10 +243,17 @@ def execute(cmd):
 
 def find_commits(symbol, diff):
     """Find commits changing %symbol in the given range of %diff."""
-    commits = execute(["git", "log", "--pretty=oneline",
-                       "--abbrev-commit", "-G",
-                       symbol, diff])
+    cmd = ["git", "log", "--pretty=oneline", "--abbrev-commit", "-G", symbol]
+    if diff:
+        cmd.append(diff)
+    commits = execute(cmd)
     return [x for x in commits.split("\n") if x]
+
+
+def find_commits_helper(args):
+    """Helper for find_commits() to be used with map()"""
+    symbol, diff = args
+    return symbol, find_commits(symbol, diff)
 
 
 def tree_is_dirty():
@@ -282,7 +299,10 @@ def find_sims(symbol, ignore, defined=[]):
         arglist.append((part, ignore))
 
     for res in pool.map(parse_kconfig_files, arglist):
-        defined.extend(res[0])
+        if isinstance(defined, set):
+            defined.update(res[0])
+        else:
+            defined.extend(res[0])
 
     return difflib.get_close_matches(symbol, set(defined), 10)
 
