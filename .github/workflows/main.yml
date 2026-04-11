@@ -74,33 +74,22 @@ jobs:
           ./sweet.sh sweet ${{ matrix.ksu-type }}
           cd ..
 
-      - name: Preparing AnyKernel3 sources
+      - name: Preparing AnyKernel3
         run: |
-          if [ -d "$PWD/AnyKernel3" ]; then
-            rm -rf AnyKernel3
-          fi
-          git clone https://github.com/riarumoda/AnyKernel3 AnyKernel3 --depth=1
+          AK3=android_kernel_xiaomi_sm6150/AnyKernel3
+          OUT=android_kernel_xiaomi_sm6150/out/arch/arm64/boot
 
-          # Cleanup bloated files from AnyKernel3 to ensure kernel zip is as small as possible
-          rm -rf AnyKernel3/.git AnyKernel3/.github AnyKernel3/README.md
-          find AnyKernel3 -type f -name "placeholder" -delete
-          find AnyKernel3 -type f -name ".gitkeep" -delete
-          find AnyKernel3 -type f -name "*.md" -delete
-
-          echo "Copying compiled artifacts to AnyKernel3..."
-          cp android_kernel_xiaomi_sm6150/out/arch/arm64/boot/Image.gz AnyKernel3/
-          cp android_kernel_xiaomi_sm6150/out/arch/arm64/boot/dtb.img AnyKernel3/
-          cp android_kernel_xiaomi_sm6150/out/arch/arm64/boot/dtbo.img AnyKernel3/
-
-          echo "Patching AnyKernel3 banner..."
-          sed -i 's/sweet (sm6150)/sweet (sm6150)/g' AnyKernel3/banner
+          echo "Copying compiled artifacts into AnyKernel3..."
+          cp "$OUT/Image.gz" "$AK3/"
+          cp "$OUT/dtb.img"  "$AK3/"
+          cp "$OUT/dtbo.img" "$AK3/"
 
       - name: Pack kernel with AnyKernel3
         run: |
           ZIPNAME="Houdini-${{ matrix.build-type }}-weekly-${{ matrix.ksu-type }}-${{ steps.ts.outputs.DATE }}-${{ steps.ts.outputs.CLOCK }}.zip"
-          cd AnyKernel3
-          zip -rq9 "../$ZIPNAME" ./*
-          cd ..
+          cd android_kernel_xiaomi_sm6150/AnyKernel3
+          zip -rq9 "../../$ZIPNAME" ./*
+          cd ../..
 
           echo "Optimizing ZIP compression..."
           advzip -z -4 -i 100 "$ZIPNAME"
