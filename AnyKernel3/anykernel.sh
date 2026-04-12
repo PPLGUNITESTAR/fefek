@@ -1,3 +1,4 @@
+#!/system/bin/sh
 # AnyKernel3 — Houdini Kernel for sweet (sm6150)
 # osm0sis @ xda-developers
 
@@ -13,35 +14,37 @@ supported.patchlevels=
 supported.vendorpatchlevels=
 '; }
 
-# boot partition — sweet is non-AB, no vendor_boot
-BLOCK=/dev/block/bootdevice/by-name/boot;
-IS_SLOT_DEVICE=0;
-RAMDISK_COMPRESSION=auto;
-PATCH_VBMETA_FLAG=auto;
+# boot partition detection
+BLOCK=/dev/block/bootdevice/by-name/boot
+[ ! -e "$BLOCK" ] && BLOCK=/dev/block/by-name/boot
+
+IS_SLOT_DEVICE=0
+RAMDISK_COMPRESSION=auto
+PATCH_VBMETA_FLAG=auto
 
 # import ak3 core functions
-. tools/ak3-core.sh;
+. tools/ak3-core.sh
 
 # Display build info if available
 if [ -f buildinfo.sh ]; then
-  . ./buildinfo.sh;
-  ui_print " ";
-  ui_print "  Build Date : $BUILD_DATE";
-  ui_print "  Variant    : $BUILD_TYPE";
+  . buildinfo.sh
+  ui_print " "
+  ui_print "  Build Date : $BUILD_DATE"
+  ui_print "  Variant    : $BUILD_TYPE"
   if [ "$BORE_MODE" = "bore" ]; then
-    ui_print "  BORE       : Active";
+    ui_print "  BORE       : Active"
   else
-    ui_print "  BORE       : Inactive";
-  fi;
-  ui_print " ";
-fi;
+    ui_print "  BORE       : Inactive"
+  fi
+  ui_print " "
+fi
 
-# kernel 4.14 — non-GKI, straight dump_boot + write_boot
-dump_boot;
+# flash kernel
+dump_boot
 
 # flash dtbo.img if present
 if [ -f dtbo.img ]; then
-  flash_generic dtbo;
-fi;
+  flash_generic dtbo
+fi
 
-write_boot;
+write_boot

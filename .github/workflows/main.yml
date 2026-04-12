@@ -115,7 +115,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.build-type }}-${{ matrix.ksu-type }}
+          name: ${{ matrix.build-type }}-${{ matrix.ksu-type }}-${{ matrix.bore-type }}
           path: |
             *.zip
 
@@ -123,7 +123,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: warnings-log-${{ matrix.build-type }}-${{ matrix.ksu-type }}
+          name: warnings-log-${{ matrix.build-type }}-${{ matrix.ksu-type }}-${{ matrix.bore-type }}
           path: android_kernel_xiaomi_sm6150/warnings.txt
 
   release:
