@@ -8,24 +8,10 @@ on:
         required: true
         default: "binder"
       bore:
-        description: "Pilih varian BORE (bore / none / all)"
+        description: "Aktifkan BORE scheduler? (Centang = ON)"
         required: true
-        default: "all"
-        type: choice
-        options:
-          - bore
-          - none
-          - all
-      ksu:
-        description: "Pilih varian KSU (zako / zako_susfs / none / all)"
-        required: true
-        default: "all"
-        type: choice
-        options:
-          - zako
-          - zako_susfs
-          - none
-          - all
+        default: true
+        type: boolean
 
   schedule:
     - cron: "5 3 * * 0"
@@ -44,8 +30,7 @@ jobs:
     strategy:
       matrix:
         build-type: [sweet]
-        ksu-type: ${{ fromJSON(github.event_name == 'workflow_dispatch' && (github.event.inputs.ksu == 'zako' && '["zako"]' || (github.event.inputs.ksu == 'zako_susfs' && '["zako_susfs"]' || (github.event.inputs.ksu == 'none' && '["none"]' || '["zako", "zako_susfs", "none"]'))) || '["zako", "zako_susfs", "none"]') }}
-        bore-type: ${{ fromJSON(github.event_name == 'workflow_dispatch' && (github.event.inputs.bore == 'bore' && '["bore"]' || (github.event.inputs.bore == 'none' && '["none"]' || '["bore", "none"]')) || '["bore", "none"]') }}
+        ksu-type: [zako, zako_susfs, none]
 
     steps:
       - uses: actions/checkout@v6.0.2
@@ -91,7 +76,11 @@ jobs:
           echo "Determining KSU type..."
           echo "Starting to compile..."
           cd android_kernel_xiaomi_sm6150/
-          ./sweet.sh sweet ${{ matrix.ksu-type }} ${{ matrix.bore-type }}
+          BORE_VAL="none"
+          if [[ "${{ github.event.inputs.bore }}" == "true" || "${{ github.event_name }}" == "schedule" ]]; then
+            BORE_VAL="bore"
+          fi
+          ./sweet.sh sweet ${{ matrix.ksu-type }} $BORE_VAL
           cd ..
 
       - name: Preparing AnyKernel3
@@ -103,7 +92,9 @@ jobs:
       - name: Pack kernel with AnyKernel3
         run: |
           BORE_TAG=""
-          [[ "${{ matrix.bore-type }}" == "bore" ]] && BORE_TAG="-BORE"
+          if [[ "${{ github.event.inputs.bore }}" == "true" || "${{ github.event_name }}" == "schedule" ]]; then
+            BORE_TAG="-BORE"
+          fi
           ZIPNAME="Houdini-${{ matrix.build-type }}-weekly-${{ matrix.ksu-type }}${BORE_TAG}-${{ steps.ts.outputs.DATE }}-${{ steps.ts.outputs.CLOCK }}.zip"
           cd android_kernel_xiaomi_sm6150/AnyKernel3
           zip -rq9 "../../$ZIPNAME" ./*
@@ -115,7 +106,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.build-type }}-${{ matrix.ksu-type }}-${{ matrix.bore-type }}
+          name: ${{ matrix.build-type }}-${{ matrix.ksu-type }}
           path: |
             *.zip
 
@@ -123,7 +114,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: warnings-log-${{ matrix.build-type }}-${{ matrix.ksu-type }}-${{ matrix.bore-type }}
+          name: warnings-log-${{ matrix.build-type }}-${{ matrix.ksu-type }}
           path: android_kernel_xiaomi_sm6150/warnings.txt
 
   release:
