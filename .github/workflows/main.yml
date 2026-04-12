@@ -7,6 +7,14 @@ on:
         description: "Branch kernel yang akan di-build"
         required: true
         default: "binder"
+      bore:
+        description: "BORE? (bore / none)"
+        required: true
+        default: "bore"
+        type: choice
+        options:
+          - bore
+          - none
 
   schedule:
     - cron: "5 3 * * 0"
@@ -26,6 +34,7 @@ jobs:
       matrix:
         build-type: [sweet]
         ksu-type: [zako, zako_susfs, none]
+        bore-type: [bore, none]
 
     steps:
       - uses: actions/checkout@v6.0.2
@@ -37,9 +46,9 @@ jobs:
       - name: Timestamp
         id: ts
         run: |
-          DATE=$(date +'%Y%m%d')
-          TIME=$(date +'%s')
-          CLOCK=$(date +'%H%M')
+          DATE=$(TZ='Asia/Jakarta' date +'%Y%m%d')
+          TIME=$(TZ='Asia/Jakarta' date +'%s')
+          CLOCK=$(TZ='Asia/Jakarta' date +'%H%M')
           echo "DATE=$DATE" >> $GITHUB_OUTPUT
           echo "TIME=$TIME" >> $GITHUB_OUTPUT
           echo "CLOCK=$CLOCK" >> $GITHUB_OUTPUT
@@ -71,22 +80,20 @@ jobs:
           echo "Determining KSU type..."
           echo "Starting to compile..."
           cd android_kernel_xiaomi_sm6150/
-          ./sweet.sh sweet ${{ matrix.ksu-type }}
+          ./sweet.sh sweet ${{ matrix.ksu-type }} ${{ matrix.bore-type }}
           cd ..
 
       - name: Preparing AnyKernel3
         run: |
-          AK3=android_kernel_xiaomi_sm6150/AnyKernel3
-          OUT=android_kernel_xiaomi_sm6150/out/arch/arm64/boot
-
-          echo "Copying compiled artifacts into AnyKernel3..."
-          cp "$OUT/Image.gz" "$AK3/"
-          cp "$OUT/dtb.img"  "$AK3/"
-          cp "$OUT/dtbo.img" "$AK3/"
+          echo "AnyKernel3 artifacts were prepared by sweet.sh"
+          ls -l android_kernel_xiaomi_sm6150/AnyKernel3/Image.gz
+          ls -l android_kernel_xiaomi_sm6150/AnyKernel3/buildinfo.sh
 
       - name: Pack kernel with AnyKernel3
         run: |
-          ZIPNAME="Houdini-${{ matrix.build-type }}-weekly-${{ matrix.ksu-type }}-${{ steps.ts.outputs.DATE }}-${{ steps.ts.outputs.CLOCK }}.zip"
+          BORE_TAG=""
+          [[ "${{ matrix.bore-type }}" == "bore" ]] && BORE_TAG="-BORE"
+          ZIPNAME="Houdini-${{ matrix.build-type }}-weekly-${{ matrix.ksu-type }}${BORE_TAG}-${{ steps.ts.outputs.DATE }}-${{ steps.ts.outputs.CLOCK }}.zip"
           cd android_kernel_xiaomi_sm6150/AnyKernel3
           zip -rq9 "../../$ZIPNAME" ./*
           cd ../..
@@ -135,11 +142,11 @@ jobs:
             > **Always back up your `boot` and `dtbo` partitions** before attempting to flash!
 
             ### 📦 Build Variants
-            | Variant | Root Solution | Extra Features |
-            | :--- | :--- | :--- |
-            | 🌟 **`zako`** (Recommended) | **ReSukiSU** | Standard Hook |
-            | 🛡️ **`zako_susfs`** | **ReSukiSU** | **SUSFS** (Enhanced Hide) |
-            | 🧊 **`none`** | *(Unrooted)* | Pure Vanilla |
+            | Variant | Root Solution | BORE Scheduler | Extra Features |
+            | :--- | :--- | :--- | :--- |
+            | 🌟 **`zako`** | **ReSukiSU** | Optional (`-BORE`) | Standard Hook |
+            | 🛡️ **`zako_susfs`** | **ReSukiSU** | Optional (`-BORE`) | **SUSFS** (Enhanced Hide) |
+            | 🧊 **`none`** | *(Unrooted)* | Optional (`-BORE`) | Pure Vanilla |
 
             > [!NOTE]
             > - **Compatibility:** Android 11 ➔ Android 16.

@@ -285,10 +285,9 @@ before_compile() {
         && cat "arch/arm64/configs/$DEVICE_DEFCONFIG" >> out/.config
     echo "CONFIG_LOCALVERSION=\"$KERNEL_NAME\"" >> out/.config
 
-    # ── Step 3: Kernel Config API — intentional overrides ────────────────────
+    # ── Step 3: Kernel Config ────────────────────
     info "Applying performance + size config overrides..."
 
-    # [SIZE] Nuke all debug info — biggest single size win
     ./scripts/config --file out/.config \
         --disable DEBUG_INFO            \
         --disable DEBUG_INFO_REDUCED    \
@@ -296,7 +295,6 @@ before_compile() {
         --disable DEBUG_INFO_DWARF4     \
         --enable  DEBUG_INFO_NONE
 
-    # [SIZE] LTO & Linker GC
     ./scripts/config --file out/.config \
         --enable  LTO_CLANG             \
         --enable  LTO_CLANG_FULL        \
@@ -305,22 +303,18 @@ before_compile() {
         --disable MODULE_SIG            \
         --disable MODULE_SIG_FORCE
 
-    # [SIZE] Silence stack frame warnings from crypto modules
     ./scripts/config --file out/.config \
         --set-val FRAME_WARN 0
 
-    # [SIZE] Compress kernel image
     ./scripts/config --file out/.config \
         --enable KERNEL_GZ
 
-    # [PERF] Scheduler & CPU policy
     ./scripts/config --file out/.config \
         --disable HZ_100                \
         --disable HZ_250                \
         --enable  HZ_300                \
         --set-val HZ 300
 
-    # [PERF] Disable unnecessary debug/tracing overhead
     ./scripts/config --file out/.config \
         --disable FTRACE                \
         --disable FUNCTION_TRACER       \
@@ -337,7 +331,6 @@ before_compile() {
         --disable LOCKUP_DETECTOR       \
         --disable PROFILING
 
-    # [SILENT] Nuke bloated Qualcomm logs & verbose debugs 
     ./scripts/config --file out/.config \
         --disable SCHED_DEBUG           \
         --disable DYNAMIC_DEBUG         \
@@ -352,17 +345,11 @@ before_compile() {
         --set-val CONSOLE_LOGLEVEL_DEFAULT 3 \
         --set-val MESSAGE_LOGLEVEL_DEFAULT 3
 
-    # [PERF/BATTERY] CPU idle & power
-    ./scripts/config --file out/.config \
-        --enable  CPU_FREQ_GOV_SCHEDUTIL \
-        --enable  CPU_FREQ_GOV_PERFORMANCE
-
-    # [BATTERY] Reduce wakelock debug
     ./scripts/config --file out/.config \
         --disable PM_WAKELOCKS_LIMIT    \
         --disable PM_DEBUG
 
-    # ── Step 4: Resolve config deps, no interactive prompts ──────────────────
+    # ── Step 4: Resolve config deps ──────────────────
     info "Resolving config dependencies..."
     "${MAKE_CMD[@]}" olddefconfig &>/dev/null
     "${MAKE_CMD[@]}" syncconfig   &>/dev/null
@@ -422,6 +409,25 @@ finalize_build() {
     WARN_COUNT=${WARN_COUNT:-0}
     ERR_COUNT=${ERR_COUNT:-0}
 
+    # ── AnyKernel3 Metadata & Packaging ──────────────────────────────────────
+    info "Preparing AnyKernel3 artifacts..."
+    local AK3_DIR="AnyKernel3"
+    local DTB="out/arch/arm64/boot/dtb.img"
+    local DTBO="out/arch/arm64/boot/dtbo.img"
+    local BINFO="$AK3_DIR/buildinfo.sh"
+
+    local FULL_DATE=$(TZ='Asia/Jakarta' date +"%A, %d %b %Y %H:%M:%S WIB")
+
+    echo "# Houdini Build Metadata" > "$BINFO"
+    echo "BUILD_DATE=\"$FULL_DATE\"" >> "$BINFO"
+    echo "BUILD_TYPE=\"$KERNELSU_SELECTOR\"" >> "$BINFO"
+
+    cp "$IMAGE" "$AK3_DIR/"
+    [ -f "$DTB" ]  && cp "$DTB"  "$AK3_DIR/"
+    [ -f "$DTBO" ] && cp "$DTBO" "$AK3_DIR/"
+
+    success "AnyKernel3 ready for packaging"
+
     echo ""
     echo -e "\E[1;36m╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮\E[0m"
     echo -e "\E[1;36m│\E[0m\E[1;32m                 BUILD SUCCESSFUL                    \E[0m\E[1;36m│\E[0m"
@@ -436,6 +442,7 @@ finalize_build() {
     echo -e "\E[1;36m├─────────────────────────────────────────────────────┤\E[0m"
     printf  "\E[1;36m│\E[0m  \E[1;37mErrors  :\E[0m \E[1;31m%-41s\E[0m\E[1;36m│\E[0m\n" "$ERR_COUNT"
     printf  "\E[1;36m│\E[0m  \E[1;37mWarnings:\E[0m \E[1;33m%-41s\E[0m\E[1;36m│\E[0m\n" "$WARN_COUNT"
+    printf  "\E[1;36m│\E[0m  \E[1;37mBuilt   :\E[0m \E[1;34m%-41s\E[0m\E[1;36m│\E[0m\n" "$FULL_DATE"
     echo -e "\E[1;36m╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯\E[0m"
     echo ""
     ls -alh "$IMAGE"

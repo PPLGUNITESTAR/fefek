@@ -22,6 +22,18 @@ PATCH_VBMETA_FLAG=auto;
 # import ak3 core functions
 . tools/ak3-core.sh;
 
+# Display build info if available
+if [ -f buildinfo.sh ]; then
+  . ./buildinfo.sh;
+  ui_print " ";
+  ui_print "  Build Date : $BUILD_DATE";
+  ui_print "  Variant    : $BUILD_TYPE";
+  local BSTATUS="Active"
+  [[ "$BORE_MODE" != "bore" ]] && BSTATUS="Inactive"
+  ui_print "  BORE       : $BSTATUS";
+  ui_print " ";
+fi;
+
 # kernel 4.14 — non-GKI, straight dump_boot + write_boot
 dump_boot;
 
