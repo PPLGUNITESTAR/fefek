@@ -28,9 +28,11 @@ if [ -f buildinfo.sh ]; then
   ui_print " ";
   ui_print "  Build Date : $BUILD_DATE";
   ui_print "  Variant    : $BUILD_TYPE";
-  local BSTATUS="Active"
-  [[ "$BORE_MODE" != "bore" ]] && BSTATUS="Inactive"
-  ui_print "  BORE       : $BSTATUS";
+  if [ "$BORE_MODE" = "bore" ]; then
+    ui_print "  BORE       : Active";
+  else
+    ui_print "  BORE       : Inactive";
+  fi;
   ui_print " ";
 fi;
 
