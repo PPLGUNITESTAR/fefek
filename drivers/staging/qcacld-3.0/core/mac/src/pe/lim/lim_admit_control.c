@@ -166,8 +166,9 @@ lim_validate_tspec(struct mac_context *mac,
 	switch (pTspec->tsinfo.traffic.accessPolicy) {
 	case SIR_MAC_ACCESSPOLICY_EDCA:
 		retval = lim_validate_tspec_edca(mac, pTspec, pe_session);
-		if (retval != QDF_STATUS_SUCCESS)
+		if (retval != QDF_STATUS_SUCCESS) {
 			pe_warn("EDCA tspec invalid");
+		}
 			break;
 
 	case SIR_MAC_ACCESSPOLICY_HCCA:
@@ -329,8 +330,9 @@ static QDF_STATUS lim_admit_policy(struct mac_context *mac,
 							   admitPolicyInfo,
 							   &mac->lim.tspecInfo[0],
 							   pe_session);
-		if (retval != QDF_STATUS_SUCCESS)
+		if (retval != QDF_STATUS_SUCCESS) {
 			pe_err("rejected by BWFactor policy");
+		}
 			break;
 
 	case WNI_CFG_ADMIT_POLICY_REJECT_ALL:
