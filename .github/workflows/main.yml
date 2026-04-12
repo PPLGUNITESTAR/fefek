@@ -8,13 +8,24 @@ on:
         required: true
         default: "binder"
       bore:
-        description: "BORE? (bore / none)"
+        description: "Pilih varian BORE (bore / none / all)"
         required: true
-        default: "bore"
+        default: "all"
         type: choice
         options:
           - bore
           - none
+          - all
+      ksu:
+        description: "Pilih varian KSU (zako / zako_susfs / none / all)"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - zako
+          - zako_susfs
+          - none
+          - all
 
   schedule:
     - cron: "5 3 * * 0"
@@ -33,8 +44,8 @@ jobs:
     strategy:
       matrix:
         build-type: [sweet]
-        ksu-type: [zako, zako_susfs, none]
-        bore-type: [bore, none]
+        ksu-type: ${{ fromJSON(github.event_name == 'workflow_dispatch' && (github.event.inputs.ksu == 'zako' && '["zako"]' || (github.event.inputs.ksu == 'zako_susfs' && '["zako_susfs"]' || (github.event.inputs.ksu == 'none' && '["none"]' || '["zako", "zako_susfs", "none"]'))) || '["zako", "zako_susfs", "none"]') }}
+        bore-type: ${{ fromJSON(github.event_name == 'workflow_dispatch' && (github.event.inputs.bore == 'bore' && '["bore"]' || (github.event.inputs.bore == 'none' && '["none"]' || '["bore", "none"]')) || '["bore", "none"]') }}
 
     steps:
       - uses: actions/checkout@v6.0.2
