@@ -207,7 +207,10 @@ int amdtp_motu_add_pcm_hw_constraints(struct amdtp_stream *s,
 {
 	int err;
 
-	/* TODO: how to set an constraint for exactly 24bit PCM sample? */
+	/*
+	 * MOTU FireWire devices use 24-bit samples packed into 32-bit quadlets.
+	 * Inform ALSA about this 24-bit resolution within the 32-bit container.
+	 */
 	err = snd_pcm_hw_constraint_msbits(runtime, 0, 32, 24);
 	if (err < 0)
 		return err;
