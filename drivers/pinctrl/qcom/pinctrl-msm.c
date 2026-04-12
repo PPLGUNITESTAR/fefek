@@ -1361,6 +1361,9 @@ static int msm_dirconn_irq_set_affinity(struct irq_data *d,
 	struct irq_desc *desc = irq_data_to_desc(d);
 	struct irq_data *parent_data = irq_get_irq_data(desc->parent_irq);
 
+	if (IS_ENABLED(CONFIG_IRQ_SBALANCE))
+		return 0;
+
 	if (!parent_data)
 		return 0;
 
