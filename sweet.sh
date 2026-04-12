@@ -42,18 +42,25 @@ phase()   { echo ""; echo "━━━ $* ━━━"; }
 # =============================================================================
 phase "Phase 0 · Input Validation"
 
-[ $# -ne 2 ] && die "Usage: $0 [device] [ksu_mode]
-  ksu_mode : none | ksu | ksu_susfs | zako | zako_susfs"
+[ $# -ne 3 ] && die "Usage: $0 [device] [ksu_mode] [bore_mode]
+  ksu_mode  : none | ksu | ksu_susfs | zako | zako_susfs
+  bore_mode : bore | none"
 
 export DEVICE_IMPORT="$1"
 export KERNELSU_SELECTOR="$2"
+export BORE_SELECTOR="$3"
 
 case "$KERNELSU_SELECTOR" in
     none|ksu|ksu_susfs|zako|zako_susfs|zako-susfs) ;;
     *) die "Invalid ksu_mode: '$KERNELSU_SELECTOR'. Valid: none | ksu | ksu_susfs | zako | zako_susfs" ;;
 esac
 
-success "Args OK — device=$DEVICE_IMPORT ksu=$KERNELSU_SELECTOR"
+case "$BORE_SELECTOR" in
+    bore|none) ;;
+    *) die "Invalid bore_mode: '$BORE_SELECTOR'. Valid: bore | none" ;;
+esac
+
+success "Args OK — device=$DEVICE_IMPORT ksu=$KERNELSU_SELECTOR bore=$BORE_SELECTOR"
 
 # =============================================================================
 #  Phase 1 — Environment Setup
@@ -198,14 +205,17 @@ apply_device_patches
 phase "Phase 3 · Goodies Injection"
 
 add_goodies() {
-    # ── BORE Scheduler ────────────────────────────────────────────────────────
-    info "Injecting BORE scheduler..."
-    wget -qO- "https://github.com/ximi-mojito-test/android_kernel_xiaomi_mojito/commit/eff756aaf5d666a15d8ac19743b582c2ce0fe3aa.patch" \
-        | patch -s -p1 --fuzz=5
-    wget -qO- "https://github.com/ximi-mojito-test/android_kernel_xiaomi_mojito/commit/2220322065591df5ff7ae27cc1fff386d3631bd0.patch" \
-        | patch -s -p1 --fuzz=5
-    echo "CONFIG_SCHED_BORE=y" >> "$MAIN_DEFCONFIG"
-    success "BORE scheduler injected"
+    if [[ "$BORE_SELECTOR" == "bore" ]]; then
+        info "Injecting BORE scheduler..."
+        wget -qO- "https://github.com/ximi-mojito-test/android_kernel_xiaomi_mojito/commit/eff756aaf5d666a15d8ac19743b582c2ce0fe3aa.patch" \
+            | patch -s -p1 --fuzz=5
+        wget -qO- "https://github.com/ximi-mojito-test/android_kernel_xiaomi_mojito/commit/2220322065591df5ff7ae27cc1fff386d3631bd0.patch" \
+            | patch -s -p1 --fuzz=5
+        echo "CONFIG_SCHED_BORE=y" >> "$MAIN_DEFCONFIG"
+        success "BORE scheduler injected"
+    else
+        info "BORE scheduler skipped (mode=none)"
+    fi
 
     # ── Baseband Guard ──────────────────────────────────────
     info "Setting up Baseband Guard..."
@@ -421,6 +431,7 @@ finalize_build() {
     echo "# Houdini Build Metadata" > "$BINFO"
     echo "BUILD_DATE=\"$FULL_DATE\"" >> "$BINFO"
     echo "BUILD_TYPE=\"$KERNELSU_SELECTOR\"" >> "$BINFO"
+    echo "BORE_MODE=\"$BORE_SELECTOR\"" >> "$BINFO"
 
     cp "$IMAGE" "$AK3_DIR/"
     [ -f "$DTB" ]  && cp "$DTB"  "$AK3_DIR/"
@@ -435,6 +446,9 @@ finalize_build() {
     printf  "\E[1;36m│\E[0m  \E[1;37mKernel  :\E[0m \E[1;32m%-41s\E[0m\E[1;36m│\E[0m\n" "$KERNEL_NAME"
     printf  "\E[1;36m│\E[0m  \E[1;37mDevice  :\E[0m \E[1;33m%-41s\E[0m\E[1;36m│\E[0m\n" "$DEVICE_IMPORT"
     printf  "\E[1;36m│\E[0m  \E[1;37mKSU     :\E[0m \E[1;35m%-41s\E[0m\E[1;36m│\E[0m\n" "$KERNELSU_SELECTOR"
+    local BORE_STATUS="ACTIVE"
+    [[ "$BORE_SELECTOR" != "bore" ]] && BORE_STATUS="INACTIVE"
+    printf  "\E[1;36m│\E[0m  \E[1;37mBORE    :\E[0m \E[1;32m%-41s\E[0m\E[1;36m│\E[0m\n" "$BORE_STATUS"
     printf  "\E[1;36m│\E[0m  \E[1;37mBBG     :\E[0m \E[1;31m%-41s\E[0m\E[1;36m│\E[0m\n" "ACTIVE (Enforced)"
     printf  "\E[1;36m│\E[0m  \E[1;37mSize    :\E[0m \E[1;34m%-41s\E[0m\E[1;36m│\E[0m\n" "$SIZE"
     local TIME_STR="${MINS}m ${SECS}s"
