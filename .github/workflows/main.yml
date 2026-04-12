@@ -8,7 +8,7 @@ on:
         required: true
         default: "binder"
       bore:
-        description: "Aktifkan BORE scheduler? (Centang = ON)"
+        description: "BORE scheduler?"
         required: true
         default: true
         type: boolean
