@@ -86,7 +86,7 @@ setup_environment() {
         mkdir -p "$CLANG_ROOT" && cd "$CLANG_ROOT"
         curl -LO "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman"
         chmod a+x antman
-        ./antman -S && ./antman --patch=glibc
+      ./antman -S && ./antman --patch=glibc && ./antman --patch=bolt
         cd ..
     else
         info "Clang cache hit — skipping fetch"
@@ -129,7 +129,7 @@ setup_environment() {
         CROSS_COMPILE=aarch64-linux-android-
         CROSS_COMPILE_ARM32=arm-linux-gnueabi-
         CLANG_TRIPLE=aarch64-linux-gnu-
-        KCFLAGS="-O3 -mllvm -polly -mllvm -polly-ast-use-context -mllvm -polly-vectorizer=stripmine -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast"
+        KCFLAGS="-O3 -Oz -mllvm -inline-threshold=200 -mllvm -polly -mllvm -polly-ast-use-context -mllvm -polly-vectorizer=stripmine -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast"
     )
 
     success "Environment ready — $THREAD_COUNT threads available"
