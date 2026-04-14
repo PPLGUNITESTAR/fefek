@@ -99,7 +99,7 @@ setup_environment() {
         export PATH="$CLANG_ROOT/bin:$GCC64_ROOT/bin:$GCC32_ROOT/bin:/usr/bin:$PATH"
 
         if [ ! -d "$CLANG_ROOT" ]; then
-            info "Fetching Neutron Clang via Antman..."
+            info "Fetching Neutron Clang..."
             mkdir -p "$CLANG_ROOT" && cd "$CLANG_ROOT"
             curl -LO "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman"
             chmod a+x antman
@@ -127,7 +127,7 @@ setup_environment() {
         export PATH="$LILIUM_ROOT/bin:/usr/bin:$PATH"
 
         if [ ! -d "$LILIUM_ROOT/bin" ]; then
-            info "Fetching Lilium Clang (LTO+PGO+BOLT)..."
+            info "Fetching Lilium Clang..."
             mkdir -p "$LILIUM_ROOT" && cd "$LILIUM_ROOT"
             wget -q https://github.com/liliumproject/clang/releases/download/20250912/lilium_clang-20250912.tar.gz
             info "Extracting Lilium Clang..."
@@ -175,7 +175,7 @@ setup_environment() {
             CROSS_COMPILE=aarch64-linux-gnu-
             CROSS_COMPILE_ARM32=arm-linux-gnueabi-
             CLANG_TRIPLE=aarch64-linux-gnu-
-            KCFLAGS="-O3 -mllvm -inline-threshold=200 -mllvm -polly -mllvm -polly-ast-use-context -mllvm -polly-vectorizer=stripmine -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast"
+            KCFLAGS="-O3 -mllvm -inline-threshold=200 -mllvm -polly -mllvm -polly-ast-use-context -mllvm -polly-vectorizer=stripmine -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast -Wno-default-const-init-var-unsafe -Wno-default-const-init-field-unsafe -Wno-implicit-enum-enum-cast"
         )
     fi
 
