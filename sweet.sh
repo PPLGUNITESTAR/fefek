@@ -189,6 +189,10 @@ apply_device_patches() {
 
     # Append LN8000 config
     echo "CONFIG_CHARGER_LN8000=y" >> "$MAIN_DEFCONFIG"
+    
+    # Misc
+    echo "CONFIG_EROFS_FS=y" >> "$MAIN_DEFCONFIG"
+    echo "CONFIG_SECURITY_SELINUX_DEVELOP=y" >> "$MAIN_DEFCONFIG"
 
     # ── Missing Headers ───────────────────────────────────
     info "Patching missing uaccess header for perf_trace_user..."
@@ -229,11 +233,12 @@ add_goodies() {
         curl -LSs "https://github.com/ReSukiSU/ReSukiSU/raw/refs/heads/main/kernel/setup.sh" \
             | bash -s main &>/dev/null
         {
-            echo "CONFIG_KSU=y"
-            echo "CONFIG_KSU_MULTI_MANAGER_SUPPORT=y"
-            echo "CONFIG_KPM=n"
-            echo "CONFIG_KSU_MANUAL_HOOK=y"
-            echo "CONFIG_HAVE_SYSCALL_TRACEPOINTS=y"
+            echo "CONFIG_KSU=y" >> $MAIN_DEFCONFIG
+            echo "CONFIG_KSU_MULTI_MANAGER_SUPPORT=y" >> $MAIN_DEFCONFIG
+            echo "CONFIG_KPM=n" >> $MAIN_DEFCONFIG
+            echo "CONFIG_KSU_MANUAL_HOOK=y" >> $MAIN_DEFCONFIG
+            echo "CONFIG_HAVE_SYSCALL_TRACEPOINTS=y" >> $MAIN_DEFCONFIG
+            echo "CONFIG_THREAD_INFO_IN_TASK=y" >> $MAIN_DEFCONFIG
         } >> "$MAIN_DEFCONFIG"
 
         # SUSFS branch
@@ -242,15 +247,18 @@ add_goodies() {
             wget -qO- "https://github.com/JackA1ltman/NonGKI_Kernel_Build_2nd/raw/refs/heads/mainline/Patches/Patch/susfs_patch_to_4.14.patch" \
                 | patch -s -p1 --fuzz=5
             {
-                echo "CONFIG_KSU_SUSFS=y"
-                echo "CONFIG_KSU_SUSFS_SUS_PATH=y"
-                echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y"
-                echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y"
-                echo "CONFIG_KSU_SUSFS_SUS_OVERLAYFS=y"
-                echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=y"
-                echo "CONFIG_KSU_SUSFS_SPOOF_UNAME=y"
-                echo "CONFIG_KSU_SUSFS_ENABLE_LOG=y"
-                echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y"
+            echo "CONFIG_KSU_SUSFS=y"
+            echo "CONFIG_KSU_SUSFS_SUS_PATH=y"
+            echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y"
+            echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y"
+            echo "CONFIG_KSU_SUSFS_SPOOF_UNAME=y"
+            echo "CONFIG_KSU_SUSFS_ENABLE_LOG=y"
+            echo "CONFIG_KSU_SUSFS_SUS_OVERLAYFS=y"
+            echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y"
+            echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y"
+            echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y"
+            echo "CONFIG_KSU_SUSFS_SUS_MAP=y"
+            echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=y" 
             } >> "$MAIN_DEFCONFIG"
 
             KSU_HOOK="https://github.com/JackA1ltman/NonGKI_Kernel_Build_2nd/raw/refs/heads/mainline/Patches/susfs_inline_hook_patches.sh"
