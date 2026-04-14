@@ -233,12 +233,12 @@ add_goodies() {
         curl -LSs "https://github.com/ReSukiSU/ReSukiSU/raw/refs/heads/main/kernel/setup.sh" \
             | bash -s main &>/dev/null
         {
-            echo "CONFIG_KSU=y" >> $MAIN_DEFCONFIG
-            echo "CONFIG_KSU_MULTI_MANAGER_SUPPORT=y" >> $MAIN_DEFCONFIG
-            echo "CONFIG_KPM=n" >> $MAIN_DEFCONFIG
-            echo "CONFIG_KSU_MANUAL_HOOK=y" >> $MAIN_DEFCONFIG
-            echo "CONFIG_HAVE_SYSCALL_TRACEPOINTS=y" >> $MAIN_DEFCONFIG
-            echo "CONFIG_THREAD_INFO_IN_TASK=y" >> $MAIN_DEFCONFIG
+            echo "CONFIG_KSU=y"
+            echo "CONFIG_KSU_MULTI_MANAGER_SUPPORT=y"
+            echo "CONFIG_KPM=n"
+            echo "CONFIG_KSU_MANUAL_HOOK=y"
+            echo "CONFIG_HAVE_SYSCALL_TRACEPOINTS=y"
+            echo "CONFIG_THREAD_INFO_IN_TASK=y"
         } >> "$MAIN_DEFCONFIG"
 
         # SUSFS branch
