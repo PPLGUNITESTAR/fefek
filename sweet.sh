@@ -92,10 +92,25 @@ setup_environment() {
     export GIT_EMAIL="${KBUILD_BUILD_USER}@${KBUILD_BUILD_HOST}"
 
     # ── Setup and Fetch toolchains ───────────────────────────────────────────
+    export GCC64_ROOT="$PWD/gcc64"
+    export GCC32_ROOT="$PWD/gcc32"
+
+    if [ ! -d "$GCC64_ROOT" ]; then
+        info "Fetching Greenforce GCC64..."
+        git clone https://github.com/greenforce-project/gcc-arm64 -b main --depth=1 "$GCC64_ROOT" &>/dev/null
+    else
+        info "GCC64 cache hit — skipping fetch"
+    fi
+
+    if [ ! -d "$GCC32_ROOT" ]; then
+        info "Fetching Greenforce GCC32..."
+        git clone https://github.com/greenforce-project/gcc-arm -b main --depth=1 "$GCC32_ROOT" &>/dev/null
+    else
+        info "GCC32 cache hit — skipping fetch"
+    fi
+
     if [[ "$TOOLCHAIN_SELECTOR" == "neutron" ]]; then
         export CLANG_ROOT="$PWD/clang"
-        export GCC64_ROOT="$PWD/gcc64"
-        export GCC32_ROOT="$PWD/gcc32"
         export PATH="$CLANG_ROOT/bin:$GCC64_ROOT/bin:$GCC32_ROOT/bin:/usr/bin:$PATH"
 
         if [ ! -d "$CLANG_ROOT" ]; then
@@ -108,23 +123,9 @@ setup_environment() {
         else
             info "Neutron Clang cache hit — skipping fetch"
         fi
-
-        if [ ! -d "$GCC64_ROOT" ]; then
-            info "Fetching Greenforce GCC64..."
-            git clone https://github.com/greenforce-project/gcc-arm64 -b main --depth=1 "$GCC64_ROOT" &>/dev/null
-        else
-            info "GCC64 cache hit — skipping fetch"
-        fi
-
-        if [ ! -d "$GCC32_ROOT" ]; then
-            info "Fetching Greenforce GCC32..."
-            git clone https://github.com/greenforce-project/gcc-arm -b main --depth=1 "$GCC32_ROOT" &>/dev/null
-        else
-            info "GCC32 cache hit — skipping fetch"
-        fi
     elif [[ "$TOOLCHAIN_SELECTOR" == "lilium" ]]; then
         export LILIUM_ROOT="$PWD/lilium"
-        export PATH="$LILIUM_ROOT/bin:/usr/bin:$PATH"
+        export PATH="$LILIUM_ROOT/bin:$GCC64_ROOT/bin:$GCC32_ROOT/bin:/usr/bin:$PATH"
 
         if [ ! -d "$LILIUM_ROOT/bin" ]; then
             info "Fetching Lilium Clang..."
@@ -172,10 +173,10 @@ setup_environment() {
             CC="clang" LD=ld.lld
             AR=llvm-ar AS=llvm-as NM=llvm-nm
             OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip
-            CROSS_COMPILE=aarch64-linux-gnu-
+            CROSS_COMPILE=aarch64-linux-android-
             CROSS_COMPILE_ARM32=arm-linux-gnueabi-
             CLANG_TRIPLE=aarch64-linux-gnu-
-            KCFLAGS="-O3 -mllvm -inline-threshold=200 -mllvm -polly -mllvm -polly-ast-use-context -mllvm -polly-vectorizer=stripmine -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast -Wno-default-const-init-var-unsafe -Wno-default-const-init-field-unsafe -Wno-implicit-enum-enum-cast"
+            KCFLAGS="-O3 -mllvm -inline-threshold=200 -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast -Wno-default-const-init-var-unsafe -Wno-default-const-init-field-unsafe -Wno-implicit-enum-enum-cast"
         )
     fi
 
