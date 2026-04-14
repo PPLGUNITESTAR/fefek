@@ -30,9 +30,23 @@ if [ -f buildinfo.sh ]; then
   ui_print "  Build Date : $BUILD_DATE";
   ui_print "  Variant    : $BUILD_TYPE";
   if [ "$BORE_MODE" = "bore" ]; then
-    ui_print "  BORE       : Active";
+    ui_print "  BORE Sched : Active";
   else
-    ui_print "  BORE       : Inactive";
+    ui_print "  BORE Sched : Inactive";
+  fi;
+  if [ "$F2FS_MODE" = "f2fs" ]; then
+    ui_print "  F2FS Compression : Enabled";
+  else
+    ui_print "  F2FS Compression : Disabled";
+  fi;
+  if [ "$TOOLCHAIN" = "kaleidoscope" ]; then
+    ui_print "  Compiler   : Kaleidoscope Clang";
+  elif [ "$TOOLCHAIN" = "lilium" ]; then
+    ui_print "  Compiler   : Lilium Clang";
+  elif [ "$TOOLCHAIN" = "greenforce" ]; then
+    ui_print "  Compiler   : Greenforce Clang";
+  else
+    ui_print "  Compiler   : Neutron Clang";
   fi;
   ui_print " ";
 fi;
