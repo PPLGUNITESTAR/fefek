@@ -23,6 +23,7 @@ _banner() {
   echo -e "    ${_D}Device     : ${_G}sweet (sm6150 / SDM732G)${E}"
   local TC_DISP="Neutron Clang + GCC"
   [[ "$TOOLCHAIN_SELECTOR" == "lilium" ]] && TC_DISP="Lilium Clang + LLD"
+  [[ "$TOOLCHAIN_SELECTOR" == "kaleidoscope" ]] && TC_DISP="Kaleidoscope Clang + LLD"
   echo -e "    ${_D}Toolchain  : ${_CY}${TC_DISP}${E}"
   echo -e "${B}   -----------------------------------------------${E}"
   echo ""
@@ -47,7 +48,7 @@ phase "Phase 0 · Input Validation"
   ksu_mode  : none | ksu | ksu_susfs | zako | zako_susfs
   bore_mode : bore | none
   f2fs_mode : f2fs | none
-  toolchain : neutron | lilium"
+  toolchain : neutron | lilium | kaleidoscope"
 
 export DEVICE_IMPORT="$1"
 export KERNELSU_SELECTOR="$2"
@@ -71,8 +72,8 @@ case "$F2FS_SELECTOR" in
 esac
 
 case "$TOOLCHAIN_SELECTOR" in
-    neutron|lilium) ;;
-    *) die "Invalid toolchain: '$TOOLCHAIN_SELECTOR'. Valid: neutron | lilium" ;;
+    neutron|lilium|kaleidoscope) ;;
+    *) die "Invalid toolchain: '$TOOLCHAIN_SELECTOR'. Valid: neutron | lilium | kaleidoscope" ;;
 esac
 
 _banner
@@ -138,6 +139,21 @@ setup_environment() {
         else
             info "Lilium Clang cache hit — skipping fetch"
         fi
+    elif [[ "$TOOLCHAIN_SELECTOR" == "kaleidoscope" ]]; then
+        export KALEIDOSCOPE_ROOT="$PWD/kaleidoscope"
+        export PATH="$KALEIDOSCOPE_ROOT/bin:$GCC64_ROOT/bin:$GCC32_ROOT/bin:/usr/bin:$PATH"
+
+        if [ ! -d "$KALEIDOSCOPE_ROOT/bin" ]; then
+            info "Fetching Kaleidoscope Clang..."
+            mkdir -p "$KALEIDOSCOPE_ROOT" && cd "$KALEIDOSCOPE_ROOT"
+            wget -qO clang.tar.zst https://github.com/PurrrsLitterbox/LLVM-stable/releases/download/llvmorg-22.1.2/clang.tar.zst
+            info "Extracting Kaleidoscope Clang..."
+            tar -xf clang.tar.zst
+            rm clang.tar.zst
+            cd ..
+        else
+            info "Kaleidoscope Clang cache hit — skipping fetch"
+        fi
     fi
 
     # ── Clang version probe ───────────────────────────────────────────────────
@@ -167,6 +183,18 @@ setup_environment() {
             KCFLAGS="-O3 -mllvm -inline-threshold=200 -mllvm -polly -mllvm -polly-ast-use-context -mllvm -polly-vectorizer=stripmine -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast"
         )
     elif [[ "$TOOLCHAIN_SELECTOR" == "lilium" ]]; then
+        export MAKE_ARGS=(
+            ARCH=arm64
+            LLVM=1 LLVM_IAS=1
+            CC="clang" LD=ld.lld
+            AR=llvm-ar AS=llvm-as NM=llvm-nm
+            OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip
+            CROSS_COMPILE=aarch64-linux-android-
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+            CLANG_TRIPLE=aarch64-linux-gnu-
+            KCFLAGS="-O3 -mllvm -inline-threshold=200 -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast -Wno-default-const-init-var-unsafe -Wno-default-const-init-field-unsafe -Wno-implicit-enum-enum-cast"
+        )
+    elif [[ "$TOOLCHAIN_SELECTOR" == "kaleidoscope" ]]; then
         export MAKE_ARGS=(
             ARCH=arm64
             LLVM=1 LLVM_IAS=1

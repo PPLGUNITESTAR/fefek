@@ -25,6 +25,7 @@ on:
         options:
           - neutron
           - lilium
+          - kaleidoscope
 
   schedule:
     - cron: "5 3 * * 0"
