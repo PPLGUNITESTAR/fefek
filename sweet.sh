@@ -42,13 +42,15 @@ phase()   { echo ""; echo "━━━ $* ━━━"; }
 # =============================================================================
 phase "Phase 0 · Input Validation"
 
-[ $# -ne 3 ] && die "Usage: $0 [device] [ksu_mode] [bore_mode]
+[ $# -ne 4 ] && die "Usage: $0 [device] [ksu_mode] [bore_mode] [f2fs_mode]
   ksu_mode  : none | ksu | ksu_susfs | zako | zako_susfs
-  bore_mode : bore | none"
+  bore_mode : bore | none
+  f2fs_mode : f2fs | none"
 
 export DEVICE_IMPORT="$1"
 export KERNELSU_SELECTOR="$2"
 export BORE_SELECTOR="$3"
+export F2FS_SELECTOR="$4"
 
 case "$KERNELSU_SELECTOR" in
     none|ksu|ksu_susfs|zako|zako_susfs|zako-susfs) ;;
@@ -60,7 +62,12 @@ case "$BORE_SELECTOR" in
     *) die "Invalid bore_mode: '$BORE_SELECTOR'. Valid: bore | none" ;;
 esac
 
-success "Args OK — device=$DEVICE_IMPORT ksu=$KERNELSU_SELECTOR bore=$BORE_SELECTOR"
+case "$F2FS_SELECTOR" in
+    f2fs|none) ;;
+    *) die "Invalid f2fs_mode: '$F2FS_SELECTOR'. Valid: f2fs | none" ;;
+esac
+
+success "Args OK — device=$DEVICE_IMPORT ksu=$KERNELSU_SELECTOR bore=$BORE_SELECTOR f2fs=$F2FS_SELECTOR"
 
 # =============================================================================
 #  Phase 1 — Environment Setup
@@ -129,7 +136,7 @@ setup_environment() {
         CROSS_COMPILE=aarch64-linux-android-
         CROSS_COMPILE_ARM32=arm-linux-gnueabi-
         CLANG_TRIPLE=aarch64-linux-gnu-
-        KCFLAGS="-O3 -Oz -mllvm -inline-threshold=200 -mllvm -polly -mllvm -polly-ast-use-context -mllvm -polly-vectorizer=stripmine -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast"
+        KCFLAGS="-O3 -mllvm -inline-threshold=200 -mllvm -polly -mllvm -polly-ast-use-context -mllvm -polly-vectorizer=stripmine -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast"
     )
 
     success "Environment ready — $THREAD_COUNT threads available"
@@ -150,6 +157,17 @@ apply_device_patches() {
         for url in "$@"; do
             if ! wget -qO- "$url" | patch -s -p1; then
                 warn "Patch may have partially applied: $url"
+            fi
+        done
+    }
+
+    # ── Helper: revert a list of remote patches ───────────────────────────────
+    revert_patch_list() {
+        local label="$1"; shift
+        info "Reverting $label commits..."
+        for url in "$@"; do
+            if ! wget -qO- "$url" | patch -R -s -p1; then
+                warn "Revert may have failed or already reverted: $url"
             fi
         done
     }
@@ -181,6 +199,22 @@ apply_device_patches() {
     apply_patch_list "LN8K" "${LN8K_PATCHES[@]}"
     apply_patch_list "DTBO" "${DTBO_PATCHES[@]}"
 
+    if [[ "$F2FS_SELECTOR" == "f2fs" ]]; then
+        info "Applying F2FS Compression patches..."
+        REVERT_F2FS=(
+            "https://github.com/xiaomi-sm6150/android_kernel_xiaomi_sm6150/commit/212f6697ff90336cc993d163411775ec969deeb6.patch"
+            "https://github.com/xiaomi-sm6150/android_kernel_xiaomi_sm6150/commit/694585a55caa3e1873c889ab3aa1c47d93144fad.patch"
+        )
+        revert_patch_list "F2FS Reverts" "${REVERT_F2FS[@]}"
+        apply_patch_list "F2FS Compression" "https://github.com/tbyool/android_kernel_xiaomi_sm6150/commit/02baeab5aaf5319e5d68f2319516efed262533ea.patch"
+        
+        echo "CONFIG_F2FS_FS_COMPRESSION=y" >> "$MAIN_DEFCONFIG"
+        echo "CONFIG_F2FS_FS_LZ4=y" >> "$MAIN_DEFCONFIG"
+        success "F2FS patches applied"
+    else
+        info "F2FS Compression skipped (mode=none)"
+    fi
+
     info "Applying LTO fix patch..."
     wget -qO- "https://github.com/TheSillyOk/kernel_ls_patches/raw/refs/heads/master/fix_lto.patch" | patch -s -p1
 
@@ -189,6 +223,9 @@ apply_device_patches() {
 
     # Append LN8000 config
     echo "CONFIG_CHARGER_LN8000=y" >> "$MAIN_DEFCONFIG"
+
+    echo "CONFIG_EROFS_FS=y" >> "$MAIN_DEFCONFIG"
+    echo "CONFIG_SECURITY_SELINUX_DEVELOP=y" >> "$MAIN_DEFCONFIG"
 
     # ── Missing Headers ───────────────────────────────────
     info "Patching missing uaccess header for perf_trace_user..."
@@ -234,6 +271,7 @@ add_goodies() {
             echo "CONFIG_KPM=n"
             echo "CONFIG_KSU_MANUAL_HOOK=y"
             echo "CONFIG_HAVE_SYSCALL_TRACEPOINTS=y"
+            echo "CONFIG_THREAD_INFO_IN_TASK=y"
         } >> "$MAIN_DEFCONFIG"
 
         # SUSFS branch
@@ -246,11 +284,13 @@ add_goodies() {
                 echo "CONFIG_KSU_SUSFS_SUS_PATH=y"
                 echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y"
                 echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y"
-                echo "CONFIG_KSU_SUSFS_SUS_OVERLAYFS=y"
-                echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=y"
                 echo "CONFIG_KSU_SUSFS_SPOOF_UNAME=y"
                 echo "CONFIG_KSU_SUSFS_ENABLE_LOG=y"
                 echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y"
+                echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y"
+                echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y"
+                echo "CONFIG_KSU_SUSFS_SUS_MAP=y"
+                echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=y"
             } >> "$MAIN_DEFCONFIG"
 
             KSU_HOOK="https://github.com/JackA1ltman/NonGKI_Kernel_Build_2nd/raw/refs/heads/mainline/Patches/susfs_inline_hook_patches.sh"
@@ -284,6 +324,10 @@ before_compile() {
     local MAKE_CMD=(make O=out "${MAKE_ARGS[@]}")
 
     # ── Step 1: Generate base .config ─────────────────────────────────────────
+    info "Applying O3 flags before compiling..."
+    sed -i 's/KBUILD_CFLAGS\s\++= -O2/KBUILD_CFLAGS   += -O3/g' Makefile
+    sed -i 's/LDFLAGS\s\++= -O2/LDFLAGS += -O3/g' Makefile
+
     info "Generating base .config from defconfig..."
     "${MAKE_CMD[@]}" ARCH=arm64 "$ACTUAL_MAIN_DEFCONFIG" &>/dev/null
 
@@ -432,6 +476,7 @@ finalize_build() {
     echo "BUILD_DATE=\"$FULL_DATE\"" >> "$BINFO"
     echo "BUILD_TYPE=\"$KERNELSU_SELECTOR\"" >> "$BINFO"
     echo "BORE_MODE=\"$BORE_SELECTOR\"" >> "$BINFO"
+    echo "F2FS_MODE=\"$F2FS_SELECTOR\"" >> "$BINFO"
 
     cp "$IMAGE" "$AK3_DIR/"
     [ -f "$DTB" ]  && cp "$DTB"  "$AK3_DIR/"
@@ -449,6 +494,9 @@ finalize_build() {
     local BORE_STATUS="ACTIVE"
     [[ "$BORE_SELECTOR" != "bore" ]] && BORE_STATUS="INACTIVE"
     printf  "\E[1;36m│\E[0m  \E[1;37mBORE    :\E[0m \E[1;32m%-41s\E[0m\E[1;36m│\E[0m\n" "$BORE_STATUS"
+    local F2FS_STATUS="ACTIVE"
+    [[ "$F2FS_SELECTOR" != "f2fs" ]] && F2FS_STATUS="INACTIVE"
+    printf  "\E[1;36m│\E[0m  \E[1;37mF2FS    :\E[0m \E[1;33m%-41s\E[0m\E[1;36m│\E[0m\n" "$F2FS_STATUS"
     printf  "\E[1;36m│\E[0m  \E[1;37mBBG     :\E[0m \E[1;31m%-41s\E[0m\E[1;36m│\E[0m\n" "ACTIVE (Enforced)"
     printf  "\E[1;36m│\E[0m  \E[1;37mSize    :\E[0m \E[1;34m%-41s\E[0m\E[1;36m│\E[0m\n" "$SIZE"
     local TIME_STR="${MINS}m ${SECS}s"
