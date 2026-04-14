@@ -154,7 +154,7 @@ setup_environment() {
             CROSS_COMPILE=aarch64-linux-android-
             CROSS_COMPILE_ARM32=arm-linux-gnueabi-
             CLANG_TRIPLE=aarch64-linux-gnu-
-            KCFLAGS="-O2 -march=native -fno-plt -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast"
+            KCFLAGS="-O2 -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast"
         )
     elif [[ "$TOOLCHAIN_SELECTOR" == "greenforce" ]]; then
         export MAKE_ARGS=(
@@ -166,7 +166,7 @@ setup_environment() {
             CROSS_COMPILE=aarch64-linux-android-
             CROSS_COMPILE_ARM32=arm-linux-gnueabi-
             CLANG_TRIPLE=aarch64-linux-gnu-
-            KCFLAGS="-O2 -march=native -fno-plt -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast -Wno-default-const-init-var-unsafe -Wno-default-const-init-field-unsafe -Wno-implicit-enum-enum-cast"
+            KCFLAGS="-O2 -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast -Wno-default-const-init-var-unsafe -Wno-default-const-init-field-unsafe -Wno-implicit-enum-enum-cast"
         )
     fi
 
