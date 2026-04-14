@@ -21,14 +21,11 @@ _banner() {
   echo -e "${B}   -----------------------------------------------${E}"
   echo -e "    ${_D}Maintainer : ${_M}0xArCHDeViL${E}"
   echo -e "    ${_D}Device     : ${_G}sweet (sm6150 / SDM732G)${E}"
-  local TC_DISP="Neutron Clang + GCC"
-  [[ "$TOOLCHAIN_SELECTOR" == "lilium" ]] && TC_DISP="Lilium Clang + LLD"
-  [[ "$TOOLCHAIN_SELECTOR" == "kaleidoscope" ]] && TC_DISP="Kaleidoscope Clang + LLD"
-  [[ "$TOOLCHAIN_SELECTOR" == "greenforce" ]] && TC_DISP="Greenforce Clang + LLD"
-  echo -e "    ${_D}Toolchain  : ${_CY}${TC_DISP}${E}"
+  echo -e "    ${_D}Toolchain  : ${_CY}Neutron Clang${E}"
   echo -e "${B}   -----------------------------------------------${E}"
   echo ""
 }
+_banner
 
 # ── Timing ────────────────────────────────────────────────────────────────────
 BUILD_START=$(date +%s)
@@ -45,17 +42,15 @@ phase()   { echo ""; echo "━━━ $* ━━━"; }
 # =============================================================================
 phase "Phase 0 · Input Validation"
 
-[ $# -ne 5 ] && die "Usage: $0 [device] [ksu_mode] [bore_mode] [f2fs_mode] [toolchain]
+[ $# -ne 4 ] && die "Usage: $0 [device] [ksu_mode] [bore_mode] [f2fs_mode]
   ksu_mode  : none | ksu | ksu_susfs | zako | zako_susfs
   bore_mode : bore | none
-  f2fs_mode : f2fs | none
-  toolchain : neutron | lilium | kaleidoscope | greenforce"
+  f2fs_mode : f2fs | none"
 
 export DEVICE_IMPORT="$1"
 export KERNELSU_SELECTOR="$2"
 export BORE_SELECTOR="$3"
 export F2FS_SELECTOR="$4"
-export TOOLCHAIN_SELECTOR="$5"
 
 case "$KERNELSU_SELECTOR" in
     none|ksu|ksu_susfs|zako|zako_susfs|zako-susfs) ;;
@@ -72,14 +67,7 @@ case "$F2FS_SELECTOR" in
     *) die "Invalid f2fs_mode: '$F2FS_SELECTOR'. Valid: f2fs | none" ;;
 esac
 
-case "$TOOLCHAIN_SELECTOR" in
-    neutron|lilium|kaleidoscope|greenforce) ;;
-    *) die "Invalid toolchain: '$TOOLCHAIN_SELECTOR'. Valid: neutron | lilium | kaleidoscope | greenforce" ;;
-esac
-
-_banner
-
-success "Args OK — device=$DEVICE_IMPORT ksu=$KERNELSU_SELECTOR bore=$BORE_SELECTOR f2fs=$F2FS_SELECTOR toolchain=$TOOLCHAIN_SELECTOR"
+success "Args OK — device=$DEVICE_IMPORT ksu=$KERNELSU_SELECTOR bore=$BORE_SELECTOR f2fs=$F2FS_SELECTOR"
 
 # =============================================================================
 #  Phase 1 — Environment Setup
@@ -93,9 +81,23 @@ setup_environment() {
     export GIT_NAME="$KBUILD_BUILD_USER"
     export GIT_EMAIL="${KBUILD_BUILD_USER}@${KBUILD_BUILD_HOST}"
 
-    # ── Setup and Fetch toolchains ───────────────────────────────────────────
+    # ── Toolchain roots ───────────────────────────────────────────────────────
+    export CLANG_ROOT="$PWD/clang"
     export GCC64_ROOT="$PWD/gcc64"
     export GCC32_ROOT="$PWD/gcc32"
+    export PATH="$CLANG_ROOT/bin:$GCC64_ROOT/bin:$GCC32_ROOT/bin:/usr/bin:$PATH"
+
+    # ── Fetch toolchains (cached) ─────────────────────────────────────────────
+    if [ ! -d "$CLANG_ROOT" ]; then
+        info "Fetching Neutron Clang via Antman..."
+        mkdir -p "$CLANG_ROOT" && cd "$CLANG_ROOT"
+        curl -LO "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman"
+        chmod a+x antman
+      ./antman -S && ./antman --patch=glibc && ./antman --patch=bolt
+        cd ..
+    else
+        info "Clang cache hit — skipping fetch"
+    fi
 
     if [ ! -d "$GCC64_ROOT" ]; then
         info "Fetching Greenforce GCC64..."
@@ -109,62 +111,6 @@ setup_environment() {
         git clone https://github.com/greenforce-project/gcc-arm -b main --depth=1 "$GCC32_ROOT" &>/dev/null
     else
         info "GCC32 cache hit — skipping fetch"
-    fi
-
-    if [[ "$TOOLCHAIN_SELECTOR" == "neutron" ]]; then
-        export CLANG_ROOT="$PWD/clang"
-        export PATH="$CLANG_ROOT/bin:$GCC64_ROOT/bin:$GCC32_ROOT/bin:/usr/bin:$PATH"
-
-        if [ ! -d "$CLANG_ROOT" ]; then
-            info "Fetching Neutron Clang..."
-            mkdir -p "$CLANG_ROOT" && cd "$CLANG_ROOT"
-            curl -LO "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman"
-            chmod a+x antman
-          ./antman -S && ./antman --patch=glibc && ./antman --patch=bolt
-            cd ..
-        else
-            info "Neutron Clang cache hit — skipping fetch"
-        fi
-    elif [[ "$TOOLCHAIN_SELECTOR" == "lilium" ]]; then
-        export LILIUM_ROOT="$PWD/lilium"
-        export PATH="$LILIUM_ROOT/bin:$GCC64_ROOT/bin:$GCC32_ROOT/bin:/usr/bin:$PATH"
-
-        if [ ! -d "$LILIUM_ROOT/bin" ]; then
-            info "Fetching Lilium Clang..."
-            mkdir -p "$LILIUM_ROOT" && cd "$LILIUM_ROOT"
-            wget -q https://github.com/liliumproject/clang/releases/download/20250912/lilium_clang-20250912.tar.gz
-            info "Extracting Lilium Clang..."
-            tar -xf lilium_clang-20250912.tar.gz -C .
-            rm lilium_clang-20250912.tar.gz
-            cd ..
-        else
-            info "Lilium Clang cache hit — skipping fetch"
-        fi
-    elif [[ "$TOOLCHAIN_SELECTOR" == "kaleidoscope" ]]; then
-        export KALEIDOSCOPE_ROOT="$PWD/kaleidoscope"
-        export PATH="$KALEIDOSCOPE_ROOT/bin:$GCC64_ROOT/bin:$GCC32_ROOT/bin:/usr/bin:$PATH"
-
-        if [ ! -d "$KALEIDOSCOPE_ROOT/bin" ]; then
-            info "Fetching Kaleidoscope Clang..."
-            mkdir -p "$KALEIDOSCOPE_ROOT" && cd "$KALEIDOSCOPE_ROOT"
-            wget -qO clang.tar.zst https://github.com/PurrrsLitterbox/LLVM-stable/releases/download/llvmorg-22.1.2/clang.tar.zst
-            info "Extracting Kaleidoscope Clang..."
-            tar -xf clang.tar.zst
-            rm clang.tar.zst
-            cd ..
-        else
-            info "Kaleidoscope Clang cache hit — skipping fetch"
-        fi
-    elif [[ "$TOOLCHAIN_SELECTOR" == "greenforce" ]]; then
-        export GREENFORCE_ROOT="$PWD/greenforce-clang"
-        export PATH="$GREENFORCE_ROOT/bin:$GCC64_ROOT/bin:$GCC32_ROOT/bin:/usr/bin:$PATH"
-
-        if [ ! -d "$GREENFORCE_ROOT/bin" ]; then
-            info "Fetching Greenforce Clang..."
-            bash <(wget -qO- https://raw.githubusercontent.com/greenforce-project/greenforce_clang/refs/heads/main/get_clang.sh)
-        else
-            info "Greenforce Clang cache hit — skipping fetch"
-        fi
     fi
 
     # ── Clang version probe ───────────────────────────────────────────────────
@@ -181,55 +127,17 @@ setup_environment() {
     export THREAD_COUNT=$(nproc --all)
 
     # ── Global make args ──────────────────────────────────────────────────────
-    if [[ "$TOOLCHAIN_SELECTOR" == "neutron" ]]; then
-        export MAKE_ARGS=(
-            ARCH=arm64
-            LLVM=1 LLVM_IAS=1
-            CC="clang" LD=ld.lld
-            AR=llvm-ar AS=llvm-as NM=llvm-nm
-            OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip
-            CROSS_COMPILE=aarch64-linux-android-
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
-            CLANG_TRIPLE=aarch64-linux-gnu-
-            KCFLAGS="-O3 -mllvm -inline-threshold=200 -mllvm -polly -mllvm -polly-ast-use-context -mllvm -polly-vectorizer=stripmine -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast"
-        )
-    elif [[ "$TOOLCHAIN_SELECTOR" == "lilium" ]]; then
-        export MAKE_ARGS=(
-            ARCH=arm64
-            LLVM=1 LLVM_IAS=1
-            CC="clang" LD=ld.lld
-            AR=llvm-ar AS=llvm-as NM=llvm-nm
-            OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip
-            CROSS_COMPILE=aarch64-linux-android-
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
-            CLANG_TRIPLE=aarch64-linux-gnu-
-            KCFLAGS="-O3 -mllvm -inline-threshold=200 -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast -Wno-default-const-init-var-unsafe -Wno-default-const-init-field-unsafe -Wno-implicit-enum-enum-cast"
-        )
-    elif [[ "$TOOLCHAIN_SELECTOR" == "kaleidoscope" ]]; then
-        export MAKE_ARGS=(
-            ARCH=arm64
-            LLVM=1 LLVM_IAS=1
-            CC="clang" LD=ld.lld
-            AR=llvm-ar AS=llvm-as NM=llvm-nm
-            OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip
-            CROSS_COMPILE=aarch64-linux-android-
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
-            CLANG_TRIPLE=aarch64-linux-gnu-
-            KCFLAGS="-O3 -mllvm -inline-threshold=200 -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast -Wno-default-const-init-var-unsafe -Wno-default-const-init-field-unsafe -Wno-implicit-enum-enum-cast"
-        )
-    elif [[ "$TOOLCHAIN_SELECTOR" == "greenforce" ]]; then
-        export MAKE_ARGS=(
-            ARCH=arm64
-            LLVM=1 LLVM_IAS=1
-            CC="clang" LD=ld.lld
-            AR=llvm-ar AS=llvm-as NM=llvm-nm
-            OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip
-            CROSS_COMPILE=aarch64-linux-android-
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
-            CLANG_TRIPLE=aarch64-linux-gnu-
-            KCFLAGS="-O3 -mllvm -inline-threshold=200 -mllvm -polly -mllvm -polly-ast-use-context -mllvm -polly-vectorizer=stripmine -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast -Wno-default-const-init-var-unsafe -Wno-default-const-init-field-unsafe -Wno-implicit-enum-enum-cast"
-        )
-    fi
+    export MAKE_ARGS=(
+        ARCH=arm64
+        LLVM=1 LLVM_IAS=1
+        CC="clang" LD=ld.lld
+        AR=llvm-ar AS=llvm-as NM=llvm-nm
+        OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip
+        CROSS_COMPILE=aarch64-linux-android-
+        CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+        CLANG_TRIPLE=aarch64-linux-gnu-
+        KCFLAGS="-O3 -mllvm -inline-threshold=200 -mllvm -polly -mllvm -polly-ast-use-context -mllvm -polly-vectorizer=stripmine -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast"
+    )
 
     success "Environment ready — $THREAD_COUNT threads available"
 }
@@ -569,7 +477,6 @@ finalize_build() {
     echo "BUILD_TYPE=\"$KERNELSU_SELECTOR\"" >> "$BINFO"
     echo "BORE_MODE=\"$BORE_SELECTOR\"" >> "$BINFO"
     echo "F2FS_MODE=\"$F2FS_SELECTOR\"" >> "$BINFO"
-    echo "TOOLCHAIN=\"$TOOLCHAIN_SELECTOR\"" >> "$BINFO"
 
     cp "$IMAGE" "$AK3_DIR/"
     [ -f "$DTB" ]  && cp "$DTB"  "$AK3_DIR/"
@@ -590,7 +497,6 @@ finalize_build() {
     local F2FS_STATUS="ACTIVE"
     [[ "$F2FS_SELECTOR" != "f2fs" ]] && F2FS_STATUS="INACTIVE"
     printf  "\E[1;36m│\E[0m  \E[1;37mF2FS    :\E[0m \E[1;33m%-41s\E[0m\E[1;36m│\E[0m\n" "$F2FS_STATUS"
-    printf  "\E[1;36m│\E[0m  \E[1;37mCompiler:\E[0m \E[1;35m%-41s\E[0m\E[1;36m│\E[0m\n" "$TOOLCHAIN_SELECTOR"
     printf  "\E[1;36m│\E[0m  \E[1;37mBBG     :\E[0m \E[1;31m%-41s\E[0m\E[1;36m│\E[0m\n" "ACTIVE (Enforced)"
     printf  "\E[1;36m│\E[0m  \E[1;37mSize    :\E[0m \E[1;34m%-41s\E[0m\E[1;36m│\E[0m\n" "$SIZE"
     local TIME_STR="${MINS}m ${SECS}s"
