@@ -26,6 +26,7 @@ on:
           - neutron
           - lilium
           - kaleidoscope
+          - greenforce
 
   schedule:
     - cron: "5 3 * * 0"

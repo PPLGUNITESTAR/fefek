@@ -43,6 +43,8 @@ if [ -f buildinfo.sh ]; then
     ui_print "  Compiler   : Kaleidoscope Clang";
   elif [ "$TOOLCHAIN" = "lilium" ]; then
     ui_print "  Compiler   : Lilium Clang";
+  elif [ "$TOOLCHAIN" = "greenforce" ]; then
+    ui_print "  Compiler   : Greenforce Clang";
   else
     ui_print "  Compiler   : Neutron Clang";
   fi;

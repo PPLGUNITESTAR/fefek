@@ -24,6 +24,7 @@ _banner() {
   local TC_DISP="Neutron Clang + GCC"
   [[ "$TOOLCHAIN_SELECTOR" == "lilium" ]] && TC_DISP="Lilium Clang + LLD"
   [[ "$TOOLCHAIN_SELECTOR" == "kaleidoscope" ]] && TC_DISP="Kaleidoscope Clang + LLD"
+  [[ "$TOOLCHAIN_SELECTOR" == "greenforce" ]] && TC_DISP="Greenforce Clang + LLD"
   echo -e "    ${_D}Toolchain  : ${_CY}${TC_DISP}${E}"
   echo -e "${B}   -----------------------------------------------${E}"
   echo ""
@@ -48,7 +49,7 @@ phase "Phase 0 · Input Validation"
   ksu_mode  : none | ksu | ksu_susfs | zako | zako_susfs
   bore_mode : bore | none
   f2fs_mode : f2fs | none
-  toolchain : neutron | lilium | kaleidoscope"
+  toolchain : neutron | lilium | kaleidoscope | greenforce"
 
 export DEVICE_IMPORT="$1"
 export KERNELSU_SELECTOR="$2"
@@ -72,8 +73,8 @@ case "$F2FS_SELECTOR" in
 esac
 
 case "$TOOLCHAIN_SELECTOR" in
-    neutron|lilium|kaleidoscope) ;;
-    *) die "Invalid toolchain: '$TOOLCHAIN_SELECTOR'. Valid: neutron | lilium | kaleidoscope" ;;
+    neutron|lilium|kaleidoscope|greenforce) ;;
+    *) die "Invalid toolchain: '$TOOLCHAIN_SELECTOR'. Valid: neutron | lilium | kaleidoscope | greenforce" ;;
 esac
 
 _banner
@@ -154,6 +155,16 @@ setup_environment() {
         else
             info "Kaleidoscope Clang cache hit — skipping fetch"
         fi
+    elif [[ "$TOOLCHAIN_SELECTOR" == "greenforce" ]]; then
+        export GREENFORCE_ROOT="$PWD/greenforce-clang"
+        export PATH="$GREENFORCE_ROOT/bin:$GCC64_ROOT/bin:$GCC32_ROOT/bin:/usr/bin:$PATH"
+
+        if [ ! -d "$GREENFORCE_ROOT/bin" ]; then
+            info "Fetching Greenforce Clang..."
+            bash <(wget -qO- https://raw.githubusercontent.com/greenforce-project/greenforce_clang/refs/heads/main/get_clang.sh)
+        else
+            info "Greenforce Clang cache hit — skipping fetch"
+        fi
     fi
 
     # ── Clang version probe ───────────────────────────────────────────────────
@@ -205,6 +216,18 @@ setup_environment() {
             CROSS_COMPILE_ARM32=arm-linux-gnueabi-
             CLANG_TRIPLE=aarch64-linux-gnu-
             KCFLAGS="-O3 -mllvm -inline-threshold=200 -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast -Wno-default-const-init-var-unsafe -Wno-default-const-init-field-unsafe -Wno-implicit-enum-enum-cast"
+        )
+    elif [[ "$TOOLCHAIN_SELECTOR" == "greenforce" ]]; then
+        export MAKE_ARGS=(
+            ARCH=arm64
+            LLVM=1 LLVM_IAS=1
+            CC="clang" LD=ld.lld
+            AR=llvm-ar AS=llvm-as NM=llvm-nm
+            OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip
+            CROSS_COMPILE=aarch64-linux-android-
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+            CLANG_TRIPLE=aarch64-linux-gnu-
+            KCFLAGS="-O3 -mllvm -inline-threshold=200 -mllvm -polly -mllvm -polly-ast-use-context -mllvm -polly-vectorizer=stripmine -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast -Wno-default-const-init-var-unsafe -Wno-default-const-init-field-unsafe -Wno-implicit-enum-enum-cast"
         )
     fi
 
