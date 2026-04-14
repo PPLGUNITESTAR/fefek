@@ -21,7 +21,9 @@ _banner() {
   echo -e "${B}   -----------------------------------------------${E}"
   echo -e "    ${_D}Maintainer : ${_M}0xArCHDeViL${E}"
   echo -e "    ${_D}Device     : ${_G}sweet (sm6150 / SDM732G)${E}"
-  echo -e "    ${_D}Toolchain  : ${_CY}Neutron Clang${E}"
+  local TC_DISP="Neutron Clang + GCC"
+  [[ "$TOOLCHAIN_SELECTOR" == "greenforce" ]] && TC_DISP="Greenforce Clang + LLD"
+  echo -e "    ${_D}Toolchain  : ${_CY}${TC_DISP}${E}"
   echo -e "${B}   -----------------------------------------------${E}"
   echo ""
 }
@@ -42,13 +44,15 @@ phase()   { echo ""; echo "━━━ $* ━━━"; }
 # =============================================================================
 phase "Phase 0 · Input Validation"
 
-[ $# -ne 3 ] && die "Usage: $0 [device] [ksu_mode] [bore_mode]
+[ $# -ne 4 ] && die "Usage: $0 [device] [ksu_mode] [bore_mode] [toolchain]
   ksu_mode  : none | ksu | ksu_susfs | zako | zako_susfs
-  bore_mode : bore | none"
+  bore_mode : bore | none
+  toolchain : neutron | greenforce"
 
 export DEVICE_IMPORT="$1"
 export KERNELSU_SELECTOR="$2"
 export BORE_SELECTOR="$3"
+export TOOLCHAIN_SELECTOR="$4"
 
 case "$KERNELSU_SELECTOR" in
     none|ksu|ksu_susfs|zako|zako_susfs|zako-susfs) ;;
@@ -60,7 +64,12 @@ case "$BORE_SELECTOR" in
     *) die "Invalid bore_mode: '$BORE_SELECTOR'. Valid: bore | none" ;;
 esac
 
-success "Args OK — device=$DEVICE_IMPORT ksu=$KERNELSU_SELECTOR bore=$BORE_SELECTOR"
+case "$TOOLCHAIN_SELECTOR" in
+    neutron|greenforce) ;;
+    *) die "Invalid toolchain: '$TOOLCHAIN_SELECTOR'. Valid: neutron | greenforce" ;;
+esac
+
+success "Args OK — device=$DEVICE_IMPORT ksu=$KERNELSU_SELECTOR bore=$BORE_SELECTOR toolchain=$TOOLCHAIN_SELECTOR"
 
 # =============================================================================
 #  Phase 1 — Environment Setup
@@ -81,15 +90,30 @@ setup_environment() {
     export PATH="$CLANG_ROOT/bin:$GCC64_ROOT/bin:$GCC32_ROOT/bin:/usr/bin:$PATH"
 
     # ── Fetch toolchains (cached) ─────────────────────────────────────────────
-    if [ ! -d "$CLANG_ROOT" ]; then
-        info "Fetching Neutron Clang via Antman..."
-        mkdir -p "$CLANG_ROOT" && cd "$CLANG_ROOT"
-        curl -LO "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman"
-        chmod a+x antman
-      ./antman -S && ./antman --patch=glibc && ./antman --patch=bolt
-        cd ..
-    else
-        info "Clang cache hit — skipping fetch"
+    if [[ "$TOOLCHAIN_SELECTOR" == "neutron" ]]; then
+        export CLANG_ROOT="$PWD/clang"
+        export PATH="$CLANG_ROOT/bin:$GCC64_ROOT/bin:$GCC32_ROOT/bin:/usr/bin:$PATH"
+
+        if [ ! -d "$CLANG_ROOT" ]; then
+            info "Fetching Neutron Clang via Antman..."
+            mkdir -p "$CLANG_ROOT" && cd "$CLANG_ROOT"
+            curl -LO "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman"
+            chmod a+x antman
+            ./antman -S && ./antman --patch=glibc && ./antman --patch=bolt
+            cd ..
+        else
+            info "Clang cache hit — skipping fetch"
+        fi
+    elif [[ "$TOOLCHAIN_SELECTOR" == "greenforce" ]]; then
+        export GREENFORCE_ROOT="$PWD/greenforce-clang"
+        export PATH="$GREENFORCE_ROOT/bin:$GCC64_ROOT/bin:$GCC32_ROOT/bin:/usr/bin:$PATH"
+
+        if [ ! -d "$GREENFORCE_ROOT/bin" ]; then
+            info "Fetching Greenforce Clang..."
+            bash <(wget -qO- https://raw.githubusercontent.com/greenforce-project/greenforce_clang/refs/heads/main/get_clang.sh)
+        else
+            info "Greenforce Clang cache hit — skipping fetch"
+        fi
     fi
 
     if [ ! -d "$GCC64_ROOT" ]; then
@@ -120,17 +144,31 @@ setup_environment() {
     export THREAD_COUNT=$(nproc --all)
 
     # ── Global make args ──────────────────────────────────────────────────────
-    export MAKE_ARGS=(
-        ARCH=arm64
-        LLVM=1 LLVM_IAS=1
-        CC="clang" LD=ld.lld
-        AR=llvm-ar AS=llvm-as NM=llvm-nm
-        OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip
-        CROSS_COMPILE=aarch64-linux-android-
-        CROSS_COMPILE_ARM32=arm-linux-gnueabi-
-        CLANG_TRIPLE=aarch64-linux-gnu-
-        KCFLAGS="-O2 -march=native -fno-plt -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast"
-    )
+    if [[ "$TOOLCHAIN_SELECTOR" == "neutron" ]]; then
+        export MAKE_ARGS=(
+            ARCH=arm64
+            LLVM=1 LLVM_IAS=1
+            CC="clang" LD=ld.lld
+            AR=llvm-ar AS=llvm-as NM=llvm-nm
+            OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip
+            CROSS_COMPILE=aarch64-linux-android-
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+            CLANG_TRIPLE=aarch64-linux-gnu-
+            KCFLAGS="-O2 -march=native -fno-plt -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast"
+        )
+    elif [[ "$TOOLCHAIN_SELECTOR" == "greenforce" ]]; then
+        export MAKE_ARGS=(
+            ARCH=arm64
+            LLVM=1 LLVM_IAS=1
+            CC="clang" LD=ld.lld
+            AR=llvm-ar AS=llvm-as NM=llvm-nm
+            OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip
+            CROSS_COMPILE=aarch64-linux-android-
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+            CLANG_TRIPLE=aarch64-linux-gnu-
+            KCFLAGS="-O2 -march=native -fno-plt -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast -Wno-default-const-init-var-unsafe -Wno-default-const-init-field-unsafe -Wno-implicit-enum-enum-cast"
+        )
+    fi
 
     success "Environment ready — $THREAD_COUNT threads available"
 }
@@ -432,6 +470,7 @@ finalize_build() {
     echo "BUILD_DATE=\"$FULL_DATE\"" >> "$BINFO"
     echo "BUILD_TYPE=\"$KERNELSU_SELECTOR\"" >> "$BINFO"
     echo "BORE_MODE=\"$BORE_SELECTOR\"" >> "$BINFO"
+    echo "TOOLCHAIN=\"$TOOLCHAIN_SELECTOR\"" >> "$BINFO"
 
     cp "$IMAGE" "$AK3_DIR/"
     [ -f "$DTB" ]  && cp "$DTB"  "$AK3_DIR/"
@@ -449,6 +488,7 @@ finalize_build() {
     local BORE_STATUS="ACTIVE"
     [[ "$BORE_SELECTOR" != "bore" ]] && BORE_STATUS="INACTIVE"
     printf  "\E[1;36m│\E[0m  \E[1;37mBORE    :\E[0m \E[1;32m%-41s\E[0m\E[1;36m│\E[0m\n" "$BORE_STATUS"
+    printf  "\E[1;36m│\E[0m  \E[1;37mCompiler:\E[0m \E[1;35m%-41s\E[0m\E[1;36m│\E[0m\n" "$TOOLCHAIN_SELECTOR"
     printf  "\E[1;36m│\E[0m  \E[1;37mBBG     :\E[0m \E[1;31m%-41s\E[0m\E[1;36m│\E[0m\n" "ACTIVE (Enforced)"
     printf  "\E[1;36m│\E[0m  \E[1;37mSize    :\E[0m \E[1;34m%-41s\E[0m\E[1;36m│\E[0m\n" "$SIZE"
     local TIME_STR="${MINS}m ${SECS}s"
