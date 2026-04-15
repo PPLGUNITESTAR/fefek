@@ -12,6 +12,21 @@ on:
         required: true
         default: true
         type: boolean
+      f2fs:
+        description: "F2FS Compression?"
+        required: true
+        default: false
+        type: boolean
+      toolchain:
+        description: "Toolchain selection"
+        required: true
+        default: "neutron"
+        type: choice
+        options:
+          - neutron
+          - lilium
+          - kaleidoscope
+          - greenforce
 
   schedule:
     - cron: "5 3 * * 0"
@@ -80,7 +95,12 @@ jobs:
           if [[ "${{ github.event.inputs.bore }}" == "true" || "${{ github.event_name }}" == "schedule" ]]; then
             BORE_VAL="bore"
           fi
-          ./sweet.sh sweet ${{ matrix.ksu-type }} $BORE_VAL
+          F2FS_VAL="none"
+          if [[ "${{ github.event.inputs.f2fs }}" == "true" ]]; then
+            F2FS_VAL="f2fs"
+          fi
+          TOOLCHAIN_VAL="${{ github.event.inputs.toolchain || 'neutron' }}"
+          ./sweet.sh sweet ${{ matrix.ksu-type }} $BORE_VAL $F2FS_VAL $TOOLCHAIN_VAL
           cd ..
 
       - name: Preparing AnyKernel3
@@ -95,7 +115,12 @@ jobs:
           if [[ "${{ github.event.inputs.bore }}" == "true" || "${{ github.event_name }}" == "schedule" ]]; then
             BORE_TAG="-BORE"
           fi
-          ZIPNAME="Houdini-${{ matrix.build-type }}-weekly-${{ matrix.ksu-type }}${BORE_TAG}-${{ steps.ts.outputs.DATE }}-${{ steps.ts.outputs.CLOCK }}.zip"
+          F2FS_TAG=""
+          if [[ "${{ github.event.inputs.f2fs }}" == "true" ]]; then
+            F2FS_TAG="-F2FS"
+          fi
+          TC_TAG="-${{ github.event.inputs.toolchain || 'neutron' }}"
+          ZIPNAME="Houdini-${{ matrix.build-type }}-weekly-${{ matrix.ksu-type }}${BORE_TAG}${F2FS_TAG}${TC_TAG}-${{ steps.ts.outputs.DATE }}-${{ steps.ts.outputs.CLOCK }}.zip"
           cd android_kernel_xiaomi_sm6150/AnyKernel3
           zip -rq9 "../../$ZIPNAME" ./*
           cd ../..
@@ -144,11 +169,11 @@ jobs:
             > **Always back up your `boot` and `dtbo` partitions** before attempting to flash!
 
             ### 📦 Build Variants
-            | Variant | Root Solution | BORE Scheduler | Extra Features |
+            | Variant | Root Solution | Optional Toggles | Extra Features |
             | :--- | :--- | :--- | :--- |
-            | 🌟 **`zako`** | **ReSukiSU** | Optional (`-BORE`) | Standard Hook |
-            | 🛡️ **`zako_susfs`** | **ReSukiSU** | Optional (`-BORE`) | **SUSFS** (Enhanced Hide) |
-            | 🧊 **`none`** | *(Unrooted)* | Optional (`-BORE`) | Pure Vanilla |
+            | 🌟 **`zako`** | **ReSukiSU** | `-BORE` & `-F2FS` | Standard Hook |
+            | 🛡️ **`zako_susfs`** | **ReSukiSU** | `-BORE` & `-F2FS` | **SUSFS** (Enhanced Hide) |
+            | 🧊 **`none`** | *(Unrooted)* | `-BORE` & `-F2FS` | Pure Vanilla |
 
             > [!NOTE]
             > - **Compatibility:** Android 11 ➔ Android 16.
