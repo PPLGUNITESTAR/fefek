@@ -250,6 +250,21 @@ config CPU_FREQ_GOV_INTERACTIVE
 
 	  If in doubt, say N.
 
+config CPU_FREQ_GOV_SCHEDLANCER
+	tristate "'schedlancer' cpufreq governor"
+	depends on CPU_FREQ && THERMAL
+	help
+	  Thermal-aware, idle-aware cpufreq governor for SM6150.
+	  Throttles CPU frequency based on thermal sensor readings and
+	  detects cluster idle states for power savings.
+
+	  Features: hardcoded OPP tables, deferred frequency application,
+	  temperature hysteresis, per-cluster idle detection, cache-line
+	  aligned state, READ_ONCE/WRITE_ONCE on shared state, signed
+	  temperature arithmetic, and runtime OPP table validation.
+
+	  If in doubt, say Y.
+
 comment "CPU frequency scaling drivers"
 
 config CPUFREQ_DT
