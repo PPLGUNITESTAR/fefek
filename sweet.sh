@@ -226,7 +226,7 @@ setup_environment() {
             OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip
             CROSS_COMPILE=aarch64-linux-gnu-
             CROSS_COMPILE_ARM32=arm-linux-gnueabi-
-            KCFLAGS="-O3 -mllvm -inline-threshold=200 -mllvm -polly -mllvm -polly-ast-use-context -mllvm -polly-vectorizer=stripmine -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast -Wno-default-const-init-var-unsafe -Wno-default-const-init-field-unsafe -Wno-implicit-enum-enum-cast"
+            KCFLAGS="-O2 -Wno-declaration-after-statement -Wno-unused-variable -Wno-void-pointer-to-int-cast -Wno-default-const-init-var-unsafe -Wno-default-const-init-field-unsafe -Wno-implicit-enum-enum-cast"
         )
     fi
 
@@ -415,10 +415,6 @@ before_compile() {
     local MAKE_CMD=(make O=out "${MAKE_ARGS[@]}")
 
     # ── Step 1: Generate base .config ─────────────────────────────────────────
-    info "Applying O3 flags before compiling..."
-    sed -i 's/KBUILD_CFLAGS\s\++= -O2/KBUILD_CFLAGS   += -O3/g' Makefile
-    sed -i 's/LDFLAGS\s\++= -O2/LDFLAGS += -O3/g' Makefile
-
     info "Generating base .config from defconfig..."
     "${MAKE_CMD[@]}" ARCH=arm64 "$ACTUAL_MAIN_DEFCONFIG" &>/dev/null
 
