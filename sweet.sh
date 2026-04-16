@@ -97,75 +97,85 @@ setup_environment() {
     export GCC64_ROOT="$PWD/gcc64"
     export GCC32_ROOT="$PWD/gcc32"
 
-    if [ ! -d "$GCC64_ROOT" ]; then
-        info "Fetching Greenforce GCC64..."
-        git clone https://github.com/greenforce-project/gcc-arm64 -b main --depth=1 "$GCC64_ROOT" &>/dev/null
-    else
-        info "GCC64 cache hit — skipping fetch"
-    fi
-
-    if [ ! -d "$GCC32_ROOT" ]; then
-        info "Fetching Greenforce GCC32..."
-        git clone https://github.com/greenforce-project/gcc-arm -b main --depth=1 "$GCC32_ROOT" &>/dev/null
-    else
-        info "GCC32 cache hit — skipping fetch"
-    fi
-
+    # ── Path & Variables Setup ───────────────────────────────────────────────
     if [[ "$TOOLCHAIN_SELECTOR" == "neutron" ]]; then
         export CLANG_ROOT="$PWD/clang"
         export PATH="$CLANG_ROOT/bin:$GCC64_ROOT/bin:$GCC32_ROOT/bin:/usr/bin:$PATH"
-
-        if [ ! -d "$CLANG_ROOT" ]; then
-            info "Fetching Neutron Clang..."
-            mkdir -p "$CLANG_ROOT" && cd "$CLANG_ROOT"
-            curl -LO "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman"
-            chmod a+x antman
-          ./antman -S && ./antman --patch=glibc
-            cd ..
-        else
-            info "Neutron Clang cache hit — skipping fetch"
-        fi
     elif [[ "$TOOLCHAIN_SELECTOR" == "lilium" ]]; then
         export LILIUM_ROOT="$PWD/lilium"
         export PATH="$LILIUM_ROOT/bin:$GCC64_ROOT/bin:$GCC32_ROOT/bin:/usr/bin:$PATH"
-
-        if [ ! -d "$LILIUM_ROOT/bin" ]; then
-            info "Fetching Lilium Clang..."
-            mkdir -p "$LILIUM_ROOT" && cd "$LILIUM_ROOT"
-            wget -q https://github.com/liliumproject/clang/releases/download/20250912/lilium_clang-20250912.tar.gz
-            info "Extracting Lilium Clang..."
-            tar -xf lilium_clang-20250912.tar.gz -C .
-            rm lilium_clang-20250912.tar.gz
-            cd ..
-        else
-            info "Lilium Clang cache hit — skipping fetch"
-        fi
     elif [[ "$TOOLCHAIN_SELECTOR" == "kaleidoscope" ]]; then
         export KALEIDOSCOPE_ROOT="$PWD/kaleidoscope"
         export PATH="$KALEIDOSCOPE_ROOT/bin:$GCC64_ROOT/bin:$GCC32_ROOT/bin:/usr/bin:$PATH"
-
-        if [ ! -d "$KALEIDOSCOPE_ROOT/bin" ]; then
-            info "Fetching Kaleidoscope Clang..."
-            mkdir -p "$KALEIDOSCOPE_ROOT" && cd "$KALEIDOSCOPE_ROOT"
-            wget -qO clang.tar.zst https://github.com/PurrrsLitterbox/LLVM-stable/releases/download/llvmorg-22.1.2/clang.tar.zst
-            info "Extracting Kaleidoscope Clang..."
-            tar -xf clang.tar.zst
-            rm clang.tar.zst
-            cd ..
-        else
-            info "Kaleidoscope Clang cache hit — skipping fetch"
-        fi
     elif [[ "$TOOLCHAIN_SELECTOR" == "greenforce" ]]; then
         export GREENFORCE_ROOT="$PWD/greenforce-clang"
         export PATH="$GREENFORCE_ROOT/bin:$GCC64_ROOT/bin:$GCC32_ROOT/bin:/usr/bin:$PATH"
-
-        if [ ! -d "$GREENFORCE_ROOT/bin" ]; then
-            info "Fetching Greenforce Clang..."
-            bash <(wget -qO- https://raw.githubusercontent.com/greenforce-project/greenforce_clang/refs/heads/main/get_clang.sh)
-        else
-            info "Greenforce Clang cache hit — skipping fetch"
-        fi
     fi
+
+    # ── Fetch toolchains in parallel (Multi-threading) ───────────────────────
+    (
+        if [ ! -d "$GCC64_ROOT" ]; then
+            info "Fetching Greenforce GCC64..."
+            git clone https://github.com/greenforce-project/gcc-arm64 -b main --depth=1 "$GCC64_ROOT" &>/dev/null
+        else
+            info "GCC64 cache hit — skipping fetch"
+        fi
+    ) &
+
+    (
+        if [ ! -d "$GCC32_ROOT" ]; then
+            info "Fetching Greenforce GCC32..."
+            git clone https://github.com/greenforce-project/gcc-arm -b main --depth=1 "$GCC32_ROOT" &>/dev/null
+        else
+            info "GCC32 cache hit — skipping fetch"
+        fi
+    ) &
+
+    (
+        if [[ "$TOOLCHAIN_SELECTOR" == "neutron" ]]; then
+            if [ ! -d "$CLANG_ROOT" ]; then
+                info "Fetching Neutron Clang..."
+                mkdir -p "$CLANG_ROOT" && cd "$CLANG_ROOT"
+                curl -sLO "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman"
+                chmod a+x antman
+                ./antman -S && ./antman --patch=glibc
+            else
+                info "Neutron Clang cache hit — skipping fetch"
+            fi
+        elif [[ "$TOOLCHAIN_SELECTOR" == "lilium" ]]; then
+            if [ ! -d "$LILIUM_ROOT/bin" ]; then
+                info "Fetching Lilium Clang..."
+                mkdir -p "$LILIUM_ROOT" && cd "$LILIUM_ROOT"
+                wget -q https://github.com/liliumproject/clang/releases/download/20250912/lilium_clang-20250912.tar.gz
+                info "Extracting Lilium Clang..."
+                tar -xf lilium_clang-20250912.tar.gz -C .
+                rm lilium_clang-20250912.tar.gz
+            else
+                info "Lilium Clang cache hit — skipping fetch"
+            fi
+        elif [[ "$TOOLCHAIN_SELECTOR" == "kaleidoscope" ]]; then
+            if [ ! -d "$KALEIDOSCOPE_ROOT/bin" ]; then
+                info "Fetching Kaleidoscope Clang..."
+                mkdir -p "$KALEIDOSCOPE_ROOT" && cd "$KALEIDOSCOPE_ROOT"
+                wget -qO clang.tar.zst https://github.com/PurrrsLitterbox/LLVM-stable/releases/download/llvmorg-22.1.2/clang.tar.zst
+                info "Extracting Kaleidoscope Clang..."
+                tar -xf clang.tar.zst
+                rm clang.tar.zst
+            else
+                info "Kaleidoscope Clang cache hit — skipping fetch"
+            fi
+        elif [[ "$TOOLCHAIN_SELECTOR" == "greenforce" ]]; then
+            if [ ! -d "$GREENFORCE_ROOT/bin" ]; then
+                info "Fetching Greenforce Clang..."
+                bash <(wget -qO- https://raw.githubusercontent.com/greenforce-project/greenforce_clang/refs/heads/main/get_clang.sh) >/dev/null
+            else
+                info "Greenforce Clang cache hit — skipping fetch"
+            fi
+        fi
+    ) &
+
+    info "Waiting for all toolchain downloads to complete..."
+    wait
 
     # ── Clang version probe ───────────────────────────────────────────────────
     CLANG_VER=$(clang --version 2>/dev/null | head -1 || echo "unknown")
