@@ -120,7 +120,7 @@ setup_environment() {
             mkdir -p "$CLANG_ROOT" && cd "$CLANG_ROOT"
             curl -LO "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman"
             chmod a+x antman
-          ./antman -S && ./antman --patch=glibc && ./antman --patch=bolt
+          ./antman -S && ./antman --patch=glibc
             cd ..
         else
             info "Neutron Clang cache hit — skipping fetch"
