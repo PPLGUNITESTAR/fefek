@@ -6,16 +6,16 @@ on:
       branch:
         description: "Branch kernel yang akan di-build"
         required: true
-        default: "binder"
+        default: "main"
       bore:
         description: "BORE scheduler?"
         required: true
-        default: true
+        default: false
         type: boolean
       f2fs:
         description: "F2FS Compression?"
         required: true
-        default: false
+        default: true
         type: boolean
       toolchain:
         description: "Toolchain selection"
