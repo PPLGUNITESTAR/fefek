@@ -140,8 +140,7 @@ static struct property *dup_and_fixup_symbol_prop(struct of_overlay *ov,
 	if (!new->name || !new->value)
 		goto err_free;
 
-	strcpy(new->value, target_path);
-	strcpy(new->value + target_path_len, label_path);
+	snprintf(new->value, new->length, "%s%s", target_path, label_path);
 
 	/* mark the property as dynamic */
 	of_property_set_flag(new, OF_DYNAMIC);
