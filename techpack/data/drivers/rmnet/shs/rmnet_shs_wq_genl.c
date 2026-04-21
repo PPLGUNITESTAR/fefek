@@ -76,11 +76,11 @@ int rmnet_shs_genl_send_int_to_userspace(struct genl_info *info, int val)
 			       0, RMNET_SHS_GENL_CMD_INIT_DMA);
 	if (msg_head == NULL) {
 		rc = -ENOMEM;
-		goto out;
+		goto out_free_skb;
 	}
 	rc = nla_put_u32(skb, RMNET_SHS_GENL_ATTR_INT, val);
 	if (rc != 0)
-		goto out;
+		goto out_free_skb;
 
 	genlmsg_end(skb, msg_head);
 
@@ -91,8 +91,9 @@ int rmnet_shs_genl_send_int_to_userspace(struct genl_info *info, int val)
 	rm_err("SHS_GNL: Successfully sent int %d\n", val);
 	return 0;
 
+out_free_skb:
+	nlmsg_free(skb);
 out:
-	/* TODO: Need to free skb?? */
 	rm_err("SHS_GNL: FAILED to send int %d\n", val);
 	return -1;
 }
@@ -117,11 +118,11 @@ int rmnet_shs_genl_send_int_to_userspace_no_info(int val)
 			       0, RMNET_SHS_GENL_CMD_INIT_DMA);
 	if (msg_head == NULL) {
 		rc = -ENOMEM;
-		goto out;
+		goto out_free_skb;
 	}
 	rc = nla_put_u32(skb, RMNET_SHS_GENL_ATTR_INT, val);
 	if (rc != 0)
-		goto out;
+		goto out_free_skb;
 
 	genlmsg_end(skb, msg_head);
 
@@ -132,8 +133,9 @@ int rmnet_shs_genl_send_int_to_userspace_no_info(int val)
 	rm_err("SHS_GNL: Successfully sent int %d\n", val);
 	return 0;
 
+out_free_skb:
+	nlmsg_free(skb);
 out:
-	/* TODO: Need to free skb?? */
 	rm_err("SHS_GNL: FAILED to send int %d\n", val);
 	rmnet_shs_userspace_connected = 0;
 	return -1;
@@ -156,11 +158,11 @@ int rmnet_shs_genl_send_msg_to_userspace(void)
 			       0, RMNET_SHS_GENL_CMD_INIT_DMA);
 	if (msg_head == NULL) {
 		rc = -ENOMEM;
-		goto out;
+		goto out_free_skb;
 	}
 	rc = nla_put_u32(skb, RMNET_SHS_GENL_ATTR_INT, val);
 	if (rc != 0)
-		goto out;
+		goto out_free_skb;
 
 	genlmsg_end(skb, msg_head);
 
@@ -169,8 +171,9 @@ int rmnet_shs_genl_send_msg_to_userspace(void)
 	rm_err("SHS_GNL: Successfully sent int %d\n", val);
 	return 0;
 
+out_free_skb:
+	nlmsg_free(skb);
 out:
-	/* TODO: Need to free skb?? */
 	rm_err("SHS_GNL: FAILED to send int %d\n", val);
 	rmnet_shs_userspace_connected = 0;
 	return -1;
