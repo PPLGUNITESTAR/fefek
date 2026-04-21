@@ -4307,6 +4307,17 @@ def executeSuspend():
 	sysvals.writeDatafileHeader(sysvals.dmesgfile, fwdata)
 	sysvals.getdmesg()
 
+
+# Function: getSysfsFile
+# Description:
+#	 Read the content of a sysfs file natively to avoid spawning subprocesses
+def getSysfsFile(path):
+	try:
+		with open(path, 'r') as f:
+			return f.read().replace('\n', '')
+	except Exception:
+		return ''
+
 # Function: setUSBDevicesAuto
 # Description:
 #	 Set the autosuspend control parameter of all USB devices to auto
@@ -4320,10 +4331,8 @@ def setUSBDevicesAuto():
 			'idVendor' in filenames and 'idProduct' in filenames):
 			call('echo auto > %s/power/control' % dirname, shell=True)
 			name = dirname.split('/')[-1]
-			desc = Popen(['cat', '%s/product' % dirname],
-				stderr=PIPE, stdout=PIPE).stdout.read().replace('\n', '')
-			ctrl = Popen(['cat', '%s/power/control' % dirname],
-				stderr=PIPE, stdout=PIPE).stdout.read().replace('\n', '')
+			desc = getSysfsFile('%s/product' % dirname)
+			ctrl = getSysfsFile('%s/power/control' % dirname)
 			print('control is %s for %6s: %s' % (ctrl, name, desc))
 
 # Function: yesno
@@ -4385,12 +4394,10 @@ def detectUSB():
 		if(re.match('.*/usb[0-9]*.*', dirname) and
 			'idVendor' in filenames and 'idProduct' in filenames):
 			for i in field:
-				field[i] = Popen(['cat', '%s/%s' % (dirname, i)],
-					stderr=PIPE, stdout=PIPE).stdout.read().replace('\n', '')
+				field[i] = getSysfsFile('%s/%s' % (dirname, i))
 			name = dirname.split('/')[-1]
 			for i in power:
-				power[i] = Popen(['cat', '%s/power/%s' % (dirname, i)],
-					stderr=PIPE, stdout=PIPE).stdout.read().replace('\n', '')
+				power[i] = getSysfsFile('%s/power/%s' % (dirname, i))
 			if(re.match('usb[0-9]*', name)):
 				first = '%-8s' % name
 			else:
