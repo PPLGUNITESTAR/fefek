@@ -494,11 +494,11 @@ bool aa_policy_init(struct aa_policy *policy, const char *prefix,
 	if (prefix) {
 		hname = aa_str_alloc(strlen(prefix) + strlen(name) + 3, gfp);
 		if (hname)
-			sprintf(hname, "%s//%s", prefix, name);
+			snprintf(hname, strlen(prefix) + strlen(name) + 3, "%s//%s", prefix, name);
 	} else {
 		hname = aa_str_alloc(strlen(name) + 1, gfp);
 		if (hname)
-			strcpy(hname, name);
+			strscpy(hname, name, strlen(name) + 1);
 	}
 	if (!hname)
 		return false;
