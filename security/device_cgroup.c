@@ -267,12 +267,12 @@ static char type_to_char(short type)
 	return 'X';
 }
 
-static void set_majmin(char *str, unsigned m)
+static void set_majmin(char *str, unsigned m, size_t maxlen)
 {
 	if (m == ~0)
-		strcpy(str, "*");
+		strscpy(str, "*", maxlen);
 	else
-		sprintf(str, "%u", m);
+		snprintf(str, maxlen, "%u", m);
 }
 
 static int devcgroup_seq_show(struct seq_file *m, void *v)
@@ -290,15 +290,15 @@ static int devcgroup_seq_show(struct seq_file *m, void *v)
 	 */
 	if (devcgroup->behavior == DEVCG_DEFAULT_ALLOW) {
 		set_access(acc, DEVCG_ACC_MASK);
-		set_majmin(maj, ~0);
-		set_majmin(min, ~0);
+		set_majmin(maj, ~0, MAJMINLEN);
+		set_majmin(min, ~0, MAJMINLEN);
 		seq_printf(m, "%c %s:%s %s\n", type_to_char(DEVCG_DEV_ALL),
 			   maj, min, acc);
 	} else {
 		list_for_each_entry_rcu(ex, &devcgroup->exceptions, list) {
 			set_access(acc, ex->access);
-			set_majmin(maj, ex->major);
-			set_majmin(min, ex->minor);
+			set_majmin(maj, ex->major, MAJMINLEN);
+			set_majmin(min, ex->minor, MAJMINLEN);
 			seq_printf(m, "%c %s:%s %s\n", type_to_char(ex->type),
 				   maj, min, acc);
 		}
