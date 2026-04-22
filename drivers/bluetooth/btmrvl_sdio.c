@@ -1219,6 +1219,7 @@ static void btmrvl_sdio_dump_regs(struct btmrvl_private *priv)
 	char buf[256], *ptr;
 	u8 loop, func, data;
 	int MAX_LOOP = 2;
+	int sz;
 
 	btmrvl_sdio_wakeup_fw(priv);
 	sdio_claim_host(card->func);
@@ -1238,8 +1239,9 @@ static void btmrvl_sdio_dump_regs(struct btmrvl_private *priv)
 			reg_end = 0x09;
 		}
 
-		ptr += sprintf(ptr, "SDIO Func%d (%#x-%#x): ",
+		sz = scnprintf(ptr, sizeof(buf) - (ptr - buf), "SDIO Func%d (%#x-%#x): ",
 			       func, reg_start, reg_end);
+		ptr += sz;
 		for (reg = reg_start; reg <= reg_end; reg++) {
 			if (func == 0)
 				data = sdio_f0_readb(card->func, reg, &ret);
@@ -1247,9 +1249,11 @@ static void btmrvl_sdio_dump_regs(struct btmrvl_private *priv)
 				data = sdio_readb(card->func, reg, &ret);
 
 			if (!ret) {
-				ptr += sprintf(ptr, "%02x ", data);
+				sz = scnprintf(ptr, sizeof(buf) - (ptr - buf), "%02x ", data);
+				ptr += sz;
 			} else {
-				ptr += sprintf(ptr, "ERR");
+				sz = scnprintf(ptr, sizeof(buf) - (ptr - buf), "ERR");
+				ptr += sz;
 				break;
 			}
 		}
@@ -1320,6 +1324,7 @@ static void btmrvl_sdio_dump_firmware(struct btmrvl_private *priv)
 	u8 *dbg_ptr, *end_ptr, *fw_dump_data, *fw_dump_ptr;
 	u8 dump_num = 0, idx, i, read_reg, doneflag = 0;
 	u32 memory_size, fw_dump_len = 0;
+	int size = 0;
 
 	/* dump sdio register first */
 	btmrvl_sdio_dump_regs(priv);
@@ -1447,7 +1452,7 @@ done:
 	if (fw_dump_len == 0)
 		return;
 
-	fw_dump_data = vzalloc(fw_dump_len+1);
+	fw_dump_data = vzalloc(fw_dump_len + 1);
 	if (!fw_dump_data) {
 		BT_ERR("Vzalloc fw_dump_data fail!");
 		return;
@@ -1462,20 +1467,18 @@ done:
 		struct memory_type_mapping *entry = &mem_type_mapping_tbl[idx];
 
 		if (entry->mem_ptr) {
-			strcpy(fw_dump_ptr, "========Start dump ");
-			fw_dump_ptr += strlen("========Start dump ");
+			size += scnprintf(fw_dump_ptr + size,
+					  fw_dump_len + 1 - size,
+					  "========Start dump %s========\n",
+					  entry->mem_name);
 
-			strcpy(fw_dump_ptr, entry->mem_name);
-			fw_dump_ptr += strlen(entry->mem_name);
+			memcpy(fw_dump_ptr + size, entry->mem_ptr,
+			       entry->mem_size);
+			size += entry->mem_size;
 
-			strcpy(fw_dump_ptr, "========\n");
-			fw_dump_ptr += strlen("========\n");
-
-			memcpy(fw_dump_ptr, entry->mem_ptr, entry->mem_size);
-			fw_dump_ptr += entry->mem_size;
-
-			strcpy(fw_dump_ptr, "\n========End dump========\n");
-			fw_dump_ptr += strlen("\n========End dump========\n");
+			size += scnprintf(fw_dump_ptr + size,
+					  fw_dump_len + 1 - size,
+					  "\n========End dump========\n");
 
 			vfree(mem_type_mapping_tbl[idx].mem_ptr);
 			mem_type_mapping_tbl[idx].mem_ptr = NULL;

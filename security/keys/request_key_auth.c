@@ -206,7 +206,7 @@ struct key *request_key_auth_new(struct key *target, const char *op,
 	rka->dest_keyring = key_get(dest_keyring);
 
 	/* allocate the auth key */
-	sprintf(desc, "%x", target->serial);
+	snprintf(desc, sizeof(desc), "%x", target->serial);
 
 	authkey = key_alloc(&key_type_request_key_auth, desc,
 			    cred->fsuid, cred->fsgid, cred,
@@ -253,7 +253,7 @@ struct key *key_get_instantiation_authkey(key_serial_t target_id)
 	struct key *authkey;
 	key_ref_t authkey_ref;
 
-	ctx.index_key.desc_len = sprintf(description, "%x", target_id);
+	ctx.index_key.desc_len = snprintf(description, sizeof(description), "%x", target_id);
 
 	authkey_ref = search_process_keyrings(&ctx);
 
