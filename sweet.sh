@@ -19,6 +19,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="$SCRIPT_DIR/build"
 
 # ── Source all modules ────────────────────────────────────────────────────────
+chmod +x "$BUILD_DIR"/*.sh
 for _mod in \
     "$BUILD_DIR/00-common.sh" \
     "$BUILD_DIR/01-validate.sh" \
