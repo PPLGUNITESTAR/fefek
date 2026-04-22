@@ -498,6 +498,9 @@ before_compile() {
         && cat "arch/arm64/configs/$COMMON_DEFCONFIG" >> out/.config
     [ -f "arch/arm64/configs/$DEVICE_DEFCONFIG" ] \
         && cat "arch/arm64/configs/$DEVICE_DEFCONFIG" >> out/.config
+    # Watt: performance/battery/UX optimization fragment
+    [ -f "arch/arm64/configs/vendor/watt.config" ] \
+        && cat "arch/arm64/configs/vendor/watt.config" >> out/.config
     echo "CONFIG_LOCALVERSION=\"$KERNEL_NAME\"" >> out/.config
 
     # ── Step 3: Kernel Config ────────────────────
@@ -563,6 +566,33 @@ before_compile() {
     ./scripts/config --file out/.config \
         --disable PM_WAKELOCKS_LIMIT    \
         --disable PM_DEBUG
+
+    # ── Watt: Performance | UI Smoothness | Battery ──────────────────────────
+    # UCLAMP: required for Android's top-app cgroup uclamp_min hints to
+    # propagate through fork. Without this, CPU ramp hints are silently dropped
+    # → p99 frame latency spikes on app launch and heavy scroll.
+    ./scripts/config --file out/.config \
+        --enable UCLAMP_TASK            \
+        --enable UCLAMP_TASK_GROUP
+
+    # CPU_FREQ_STAT: zero runtime cost, enables time_in_state profiling.
+    ./scripts/config --file out/.config \
+        --enable CPU_FREQ_STAT
+
+    # TCP: BBR congestion control + FQ_CODEL qdisc reduces modem active time
+    # by eliminating buffer bloat retransmissions during idle network periods.
+    ./scripts/config --file out/.config \
+        --enable TCP_CONG_ADVANCED      \
+        --enable TCP_CONG_BBR           \
+        --enable NET_SCH_FQ_CODEL       \
+        --enable NET_SCH_DEFAULT        \
+        --enable DEFAULT_FQ_CODEL
+
+    # Memory: COMPACTION prevents kswapd over-waking under sustained workloads.
+    ./scripts/config --file out/.config \
+        --enable COMPACTION             \
+        --enable CMA                    \
+        --disable CMA_DEBUGFS
 
     # ── Step 4: Resolve config deps ──────────────────
     info "Resolving config dependencies..."
