@@ -228,7 +228,8 @@ struct node *get_node_by_path(struct node *tree, const char *path);
 struct node *get_node_by_label(struct node *tree, const char *label);
 struct node *get_node_by_phandle(struct node *tree, cell_t phandle);
 struct node *get_node_by_ref(struct node *tree, const char *ref);
-cell_t get_node_phandle(struct node *root, struct node *node);
+struct dt_info;
+cell_t get_node_phandle(struct dt_info *dti, struct node *node);
 
 uint32_t guess_boot_cpuid(struct node *tree);
 
@@ -255,6 +256,7 @@ struct dt_info {
 	uint32_t boot_cpuid_phys;
 	struct node *dt;		/* the device tree */
 	const char *outname;		/* filename being written to, "-" for stdout */
+	cell_t phandle_gen;
 };
 
 /* DTS version flags definitions */

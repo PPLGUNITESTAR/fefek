@@ -577,7 +577,7 @@ static void fixup_phandle_references(struct check *c, struct dt_info *dti,
 				continue;
 			}
 
-			phandle = get_node_phandle(dt, refnode);
+			phandle = get_node_phandle(dti, refnode);
 			*((fdt32_t *)(prop->val.val + m->offset)) = cpu_to_fdt32(phandle);
 		}
 	}
