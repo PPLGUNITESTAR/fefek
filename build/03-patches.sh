@@ -7,23 +7,132 @@ apply_device_patches() {
     # ── Helper: apply a list of remote patches ────────────────────────────────
     apply_patch_list() {
         local label="$1"; shift
-        info "Applying $label patches..."
-        for url in "$@"; do
-            if ! wget -qO- "$url" | patch -s -p1; then
-                warn "Patch may have partially applied: $url"
+        local urls=("$@")
+        local total=${#urls[@]}
+        local passed=0 failed=0 skipped=0 idx=1
+
+        info "Applying $label patches ($total total)..."
+
+        for url in "${urls[@]}"; do
+            # Extract short hash from URL for readable output
+            local short_hash
+            short_hash="$(basename "$url" .patch | cut -c1-12)"
+
+            printf "  [%2d/%2d] %s ... " "$idx" "$total" "$short_hash"
+
+            # Download to temp file so wget and patch exit codes are independent
+            local tmpfile
+            tmpfile="$(mktemp /tmp/patch_XXXXXX.patch)"
+
+            if ! wget -q --timeout=30 -O "$tmpfile" "$url"; then
+                echo "FAIL (download error)"
+                warn "         URL: $url"
+                rm -f "$tmpfile"
+                failed=$((failed + 1)); idx=$((idx + 1))
+                continue
             fi
+
+            # Check if patch is already applied (dry-run reverse)
+            if patch --dry-run -R -s -p1 < "$tmpfile" &>/dev/null; then
+                echo "SKIP (already applied)"
+                rm -f "$tmpfile"
+                skipped=$((skipped + 1)); idx=$((idx + 1))
+                continue
+            fi
+
+            # Apply the patch and capture output for fuzz detection
+            local patch_out
+            if patch_out="$(patch -p1 --no-backup-if-mismatch < "$tmpfile" 2>&1)"; then
+                if echo "$patch_out" | grep -qE "offset|fuzz|Hunk"; then
+                    echo "WARN (applied with fuzz/offset)"
+                    echo "$patch_out" | grep -E "offset|fuzz|Hunk" \
+                        | sed 's/^/             /'
+                else
+                    echo "OK"
+                fi
+                passed=$((passed + 1))
+            else
+                echo "FAIL (rejected)"
+                echo "$patch_out" | tail -5 | sed 's/^/             /'
+                warn "         URL: $url"
+                failed=$((failed + 1))
+            fi
+
+            rm -f "$tmpfile"
+            idx=$((idx + 1))
         done
+
+        # Per-group summary
+        if [[ $failed -eq 0 ]]; then
+            success "$label: $passed applied, $skipped skipped — all OK"
+        else
+            warn "$label: $passed OK, $skipped skipped, $failed FAILED"
+        fi
     }
 
     # ── Helper: revert a list of remote patches ───────────────────────────────
     revert_patch_list() {
         local label="$1"; shift
-        info "Reverting $label commits..."
-        for url in "$@"; do
-            if ! wget -qO- "$url" | patch -R -s -p1; then
-                warn "Revert may have failed or already reverted: $url"
+        local urls=("$@")
+        local total=${#urls[@]}
+        local passed=0 failed=0 skipped=0 idx=1
+
+        info "Reverting $label patches ($total total)..."
+
+        for url in "${urls[@]}"; do
+            local short_hash
+            short_hash="$(basename "$url" .patch | cut -c1-12)"
+
+            printf "  [%2d/%2d] %s ... " "$idx" "$total" "$short_hash"
+
+            local tmpfile
+            tmpfile="$(mktemp /tmp/patch_XXXXXX.patch)"
+
+            if ! wget -q --timeout=30 -O "$tmpfile" "$url"; then
+                echo "FAIL (download error)"
+                warn "         URL: $url"
+                rm -f "$tmpfile"
+                failed=$((failed + 1)); idx=$((idx + 1))
+                continue
             fi
+
+            # Check if already reverted (patch applies forward cleanly → not yet reverted)
+            if patch --dry-run -s -p1 < "$tmpfile" &>/dev/null; then
+                # Still applied forward → we can revert it
+                :
+            else
+                echo "SKIP (already reverted)"
+                rm -f "$tmpfile"
+                skipped=$((skipped + 1)); idx=$((idx + 1))
+                continue
+            fi
+
+            local patch_out
+            if patch_out="$(patch -R -p1 --no-backup-if-mismatch < "$tmpfile" 2>&1)"; then
+                if echo "$patch_out" | grep -qE "offset|fuzz|Hunk"; then
+                    echo "WARN (reverted with fuzz/offset)"
+                    echo "$patch_out" | grep -E "offset|fuzz|Hunk" \
+                        | sed 's/^/             /'
+                else
+                    echo "OK"
+                fi
+                passed=$((passed + 1))
+            else
+                echo "FAIL (revert rejected)"
+                echo "$patch_out" | tail -5 | sed 's/^/             /'
+                warn "         URL: $url"
+                failed=$((failed + 1))
+            fi
+
+            rm -f "$tmpfile"
+            idx=$((idx + 1))
         done
+
+        if [[ $failed -eq 0 ]]; then
+            success "$label reverts: $passed applied, $skipped skipped — all OK"
+        else
+            warn "$label reverts: $passed OK, $skipped skipped, $failed FAILED"
+        fi
     }
 
     # ── LN8000 charger patches ────────────────────────────────────────────────
@@ -71,11 +180,9 @@ apply_device_patches() {
     fi
 
     # ── Build-system fixes ────────────────────────────────────────────────────
-    info "Applying LTO fix patch..."
-    wget -qO- "https://github.com/TheSillyOk/kernel_ls_patches/raw/refs/heads/master/fix_lto.patch" | patch -s -p1
-
-    info "Applying kpatch fix patch..."
-    wget -qO- "https://github.com/TheSillyOk/kernel_ls_patches/raw/refs/heads/master/kpatch_fix.patch" | patch -s -p1
+    apply_patch_list "Build-system fixes" \
+        "https://github.com/TheSillyOk/kernel_ls_patches/raw/refs/heads/master/fix_lto.patch" \
+        "https://github.com/TheSillyOk/kernel_ls_patches/raw/refs/heads/master/kpatch_fix.patch"
 
     # ── Config additions ──────────────────────────────────────────────────────
     echo "CONFIG_CHARGER_LN8000=y"         >> "$MAIN_DEFCONFIG"
