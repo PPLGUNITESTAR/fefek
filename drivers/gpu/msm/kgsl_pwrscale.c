@@ -372,8 +372,8 @@ static bool popp_stable(struct kgsl_device *device)
 				i--;
 		}
 		if (nap_time && go_time) {
-			percent_nap = 100 * nap_time;
-			div64_s64(percent_nap, nap_time + go_time);
+			percent_nap = div64_s64(100 * nap_time,
+					nap_time + go_time);
 		}
 		trace_kgsl_popp_nap(device, (int)nap_time / 1000, nap,
 				percent_nap);

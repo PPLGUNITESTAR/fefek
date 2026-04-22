@@ -80,6 +80,8 @@ static int set_input_boost_freq(const char *buf, const struct kernel_param *kp)
 
 		per_cpu(sync_info, cpu).input_boost_freq = val;
 		cp = strnchr(cp, PAGE_SIZE - (cp - buf), ' ');
+		if (!cp)
+			break;
 		cp++;
 	}
 
@@ -90,7 +92,7 @@ check_enable:
 			break;
 		}
 	}
-	input_boost_enabled = enabled;
+	WRITE_ONCE(input_boost_enabled, enabled);
 
 	return 0;
 }
@@ -179,11 +181,11 @@ static void do_input_boost_rem(struct work_struct *work)
 	/* Update policies for all online CPUs */
 	update_policy_online();
 
-	if (sched_boost_active) {
+	if (READ_ONCE(sched_boost_active)) {
 		ret = sched_set_boost(0);
 		if (ret)
 			pr_err("cpu-boost: sched boost disable failed\n");
-		sched_boost_active = false;
+		WRITE_ONCE(sched_boost_active, false);
 	}
 }
 
@@ -193,9 +195,9 @@ static void do_input_boost(struct work_struct *work)
 	struct cpu_sync *i_sync_info;
 
 	cancel_delayed_work_sync(&input_boost_rem);
-	if (sched_boost_active) {
+	if (READ_ONCE(sched_boost_active)) {
 		sched_set_boost(0);
-		sched_boost_active = false;
+		WRITE_ONCE(sched_boost_active, false);
 	}
 
 	/* Set the input_boost_min for all CPUs in the system */
@@ -214,7 +216,7 @@ static void do_input_boost(struct work_struct *work)
 		if (ret)
 			pr_err("cpu-boost: sched boost enable failed\n");
 		else
-			sched_boost_active = true;
+			WRITE_ONCE(sched_boost_active, true);
 	}
 
 	queue_delayed_work(cpu_boost_wq, &input_boost_rem,
@@ -226,18 +228,18 @@ static void cpuboost_input_event(struct input_handle *handle,
 {
 	u64 now;
 
-	if (!input_boost_enabled)
+	if (!READ_ONCE(input_boost_enabled))
 		return;
 
 	now = ktime_to_us(ktime_get());
-	if (now - last_input_time < MIN_INPUT_INTERVAL)
+	if (now - READ_ONCE(last_input_time) < MIN_INPUT_INTERVAL)
 		return;
 
 	if (work_pending(&input_boost_work))
 		return;
 
 	queue_work(cpu_boost_wq, &input_boost_work);
-	last_input_time = ktime_to_us(ktime_get());
+	WRITE_ONCE(last_input_time, ktime_to_us(ktime_get()));
 }
 
 static int cpuboost_input_connect(struct input_handler *handler,
@@ -318,7 +320,7 @@ static int cpu_boost_init(void)
 
 	cpu_boost_wq = alloc_workqueue("cpuboost_wq", WQ_HIGHPRI, 0);
 	if (!cpu_boost_wq)
-		return -EFAULT;
+		return -ENOMEM;
 
 	INIT_WORK(&input_boost_work, do_input_boost);
 	INIT_DELAYED_WORK(&input_boost_rem, do_input_boost_rem);
@@ -330,6 +332,13 @@ static int cpu_boost_init(void)
 	cpufreq_register_notifier(&boost_adjust_nb, CPUFREQ_POLICY_NOTIFIER);
 
 	ret = input_register_handler(&cpuboost_input_handler);
+	if (ret) {
+		pr_err("cpu-boost: failed to register input handler: %d\n", ret);
+		cpufreq_unregister_notifier(&boost_adjust_nb,
+					CPUFREQ_POLICY_NOTIFIER);
+		destroy_workqueue(cpu_boost_wq);
+		return ret;
+	}
 	return 0;
 }
 late_initcall(cpu_boost_init);

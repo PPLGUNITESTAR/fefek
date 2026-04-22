@@ -83,7 +83,7 @@ struct sugov_cpu {
 };
 
 static DEFINE_PER_CPU(struct sugov_cpu, sugov_cpu);
-static unsigned int stale_ns;
+static unsigned int __read_mostly stale_ns;
 static DEFINE_PER_CPU(struct sugov_tunables *, cached_tunables);
 
 /************************ Governor internals ***********************/
@@ -672,15 +672,18 @@ static ssize_t up_rate_limit_us_store(struct gov_attr_set *attr_set,
 	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
 	struct sugov_policy *sg_policy;
 	unsigned int rate_limit_us;
+	unsigned long irq_flags;
 
 	if (kstrtouint(buf, 10, &rate_limit_us))
 		return -EINVAL;
 
-	tunables->up_rate_limit_us = rate_limit_us;
+	WRITE_ONCE(tunables->up_rate_limit_us, rate_limit_us);
 
 	list_for_each_entry(sg_policy, &attr_set->policy_list, tunables_hook) {
-		sg_policy->up_rate_delay_ns = rate_limit_us * NSEC_PER_USEC;
+		raw_spin_lock_irqsave(&sg_policy->update_lock, irq_flags);
+		sg_policy->up_rate_delay_ns = (s64)rate_limit_us * NSEC_PER_USEC;
 		update_min_rate_limit_ns(sg_policy);
+		raw_spin_unlock_irqrestore(&sg_policy->update_lock, irq_flags);
 	}
 
 	return count;
@@ -692,15 +695,18 @@ static ssize_t down_rate_limit_us_store(struct gov_attr_set *attr_set,
 	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
 	struct sugov_policy *sg_policy;
 	unsigned int rate_limit_us;
+	unsigned long irq_flags;
 
 	if (kstrtouint(buf, 10, &rate_limit_us))
 		return -EINVAL;
 
-	tunables->down_rate_limit_us = rate_limit_us;
+	WRITE_ONCE(tunables->down_rate_limit_us, rate_limit_us);
 
 	list_for_each_entry(sg_policy, &attr_set->policy_list, tunables_hook) {
-		sg_policy->down_rate_delay_ns = rate_limit_us * NSEC_PER_USEC;
+		raw_spin_lock_irqsave(&sg_policy->update_lock, irq_flags);
+		sg_policy->down_rate_delay_ns = (s64)rate_limit_us * NSEC_PER_USEC;
 		update_min_rate_limit_ns(sg_policy);
+		raw_spin_unlock_irqrestore(&sg_policy->update_lock, irq_flags);
 	}
 
 	return count;
@@ -937,6 +943,18 @@ static void sugov_tunables_restore(struct cpufreq_policy *policy)
 	tunables->hispeed_freq = cached->hispeed_freq;
 	tunables->up_rate_limit_us = cached->up_rate_limit_us;
 	tunables->down_rate_limit_us = cached->down_rate_limit_us;
+	/*
+	 * Derive the _ns fields from the restored _us tunables before
+	 * computing min_rate_limit_ns. Without this, update_min_rate_limit_ns()
+	 * reads the zero-initialized _ns fields from the kzalloc'd sg_policy
+	 * and produces min_rate_limit_ns = 0, silently disabling rate limiting.
+	 * sugov_start() will recompute these again, but restore must be correct
+	 * in case the call order ever changes.
+	 */
+	sg_policy->up_rate_delay_ns =
+			(s64)tunables->up_rate_limit_us * NSEC_PER_USEC;
+	sg_policy->down_rate_delay_ns =
+			(s64)tunables->down_rate_limit_us * NSEC_PER_USEC;
 	update_min_rate_limit_ns(sg_policy);
 }
 
@@ -982,8 +1000,12 @@ static int sugov_init(struct cpufreq_policy *policy)
 		goto stop_kthread;
 	}
 
-	tunables->up_rate_limit_us = max(1000U,
-				cpufreq_policy_transition_delay_us(policy));
+	if (policy->transition_delay_us)
+		tunables->up_rate_limit_us =
+				min(policy->transition_delay_us, 2000U);
+	else
+		tunables->up_rate_limit_us =
+				cpufreq_policy_transition_delay_us(policy);
 	tunables->down_rate_limit_us =
 				cpufreq_policy_transition_delay_us(policy);
 	tunables->hispeed_load = DEFAULT_HISPEED_LOAD;
@@ -1052,9 +1074,9 @@ static int sugov_start(struct cpufreq_policy *policy)
 	unsigned int cpu;
 
 	sg_policy->up_rate_delay_ns =
-		sg_policy->tunables->up_rate_limit_us * NSEC_PER_USEC;
+		(s64)sg_policy->tunables->up_rate_limit_us * NSEC_PER_USEC;
 	sg_policy->down_rate_delay_ns =
-		sg_policy->tunables->down_rate_limit_us * NSEC_PER_USEC;
+		(s64)sg_policy->tunables->down_rate_limit_us * NSEC_PER_USEC;
 	sg_policy->last_freq_update_time = 0;
 	sg_policy->next_freq = UINT_MAX;
 	sg_policy->work_in_progress = false;
