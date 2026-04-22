@@ -8,6 +8,13 @@ before_compile() {
 
     local MAKE_CMD=(make O=out "${MAKE_ARGS[@]}")
 
+    # ── Step 0: Apply O3 Optimization Flags ──────────────────────────────────
+    if [[ "$TOOLCHAIN_SELECTOR" == "neutron" || "$TOOLCHAIN_SELECTOR" == "lilium" || "$TOOLCHAIN_SELECTOR" == "kaleidoscope" ]]; then
+        info "Applying O3 flags before compiling..."
+        sed -i 's/KBUILD_CFLAGS\s\++= -O2/KBUILD_CFLAGS   += -O3/g' Makefile
+        sed -i 's/LDFLAGS\s\++= -O2/LDFLAGS += -O3/g' Makefile
+    fi
+
     # ── Step 1: Generate base .config ─────────────────────────────────────────
     info "Generating base .config from defconfig..."
     "${MAKE_CMD[@]}" ARCH=arm64 "$ACTUAL_MAIN_DEFCONFIG" &>/dev/null

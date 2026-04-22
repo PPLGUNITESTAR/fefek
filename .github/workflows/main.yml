@@ -1,5 +1,8 @@
 name: Sweet
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   workflow_dispatch:
     inputs:
@@ -80,6 +83,7 @@ jobs:
       - name: Extract Changelog
         id: extract_info
         run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/android_kernel_xiaomi_sm6150"
           cd android_kernel_xiaomi_sm6150
           echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
           git log -n 10 --pretty=format:"- %h: %s" >> $GITHUB_OUTPUT
