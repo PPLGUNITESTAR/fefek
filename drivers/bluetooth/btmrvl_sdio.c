@@ -1219,6 +1219,7 @@ static void btmrvl_sdio_dump_regs(struct btmrvl_private *priv)
 	char buf[256], *ptr;
 	u8 loop, func, data;
 	int MAX_LOOP = 2;
+	int sz;
 
 	btmrvl_sdio_wakeup_fw(priv);
 	sdio_claim_host(card->func);
@@ -1238,8 +1239,9 @@ static void btmrvl_sdio_dump_regs(struct btmrvl_private *priv)
 			reg_end = 0x09;
 		}
 
-		ptr += sprintf(ptr, "SDIO Func%d (%#x-%#x): ",
+		sz = scnprintf(ptr, sizeof(buf) - (ptr - buf), "SDIO Func%d (%#x-%#x): ",
 			       func, reg_start, reg_end);
+		ptr += sz;
 		for (reg = reg_start; reg <= reg_end; reg++) {
 			if (func == 0)
 				data = sdio_f0_readb(card->func, reg, &ret);
@@ -1247,9 +1249,11 @@ static void btmrvl_sdio_dump_regs(struct btmrvl_private *priv)
 				data = sdio_readb(card->func, reg, &ret);
 
 			if (!ret) {
-				ptr += sprintf(ptr, "%02x ", data);
+				sz = scnprintf(ptr, sizeof(buf) - (ptr - buf), "%02x ", data);
+				ptr += sz;
 			} else {
-				ptr += sprintf(ptr, "ERR");
+				sz = scnprintf(ptr, sizeof(buf) - (ptr - buf), "ERR");
+				ptr += sz;
 				break;
 			}
 		}
