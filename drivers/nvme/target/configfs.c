@@ -32,15 +32,15 @@ static ssize_t nvmet_addr_adrfam_show(struct config_item *item,
 {
 	switch (to_nvmet_port(item)->disc_addr.adrfam) {
 	case NVMF_ADDR_FAMILY_IP4:
-		return sprintf(page, "ipv4\n");
+		return snprintf(page, PAGE_SIZE, "ipv4\n");
 	case NVMF_ADDR_FAMILY_IP6:
-		return sprintf(page, "ipv6\n");
+		return snprintf(page, PAGE_SIZE, "ipv6\n");
 	case NVMF_ADDR_FAMILY_IB:
-		return sprintf(page, "ib\n");
+		return snprintf(page, PAGE_SIZE, "ib\n");
 	case NVMF_ADDR_FAMILY_FC:
-		return sprintf(page, "fc\n");
+		return snprintf(page, PAGE_SIZE, "fc\n");
 	default:
-		return sprintf(page, "\n");
+		return snprintf(page, PAGE_SIZE, "\n");
 	}
 }
 
@@ -139,13 +139,13 @@ static ssize_t nvmet_addr_treq_show(struct config_item *item,
 {
 	switch (to_nvmet_port(item)->disc_addr.treq) {
 	case NVMF_TREQ_NOT_SPECIFIED:
-		return sprintf(page, "not specified\n");
+		return snprintf(page, PAGE_SIZE, "not specified\n");
 	case NVMF_TREQ_REQUIRED:
-		return sprintf(page, "required\n");
+		return snprintf(page, PAGE_SIZE, "required\n");
 	case NVMF_TREQ_NOT_REQUIRED:
-		return sprintf(page, "not required\n");
+		return snprintf(page, PAGE_SIZE, "not required\n");
 	default:
-		return sprintf(page, "\n");
+		return snprintf(page, PAGE_SIZE, "\n");
 	}
 }
 
@@ -210,13 +210,13 @@ static ssize_t nvmet_addr_trtype_show(struct config_item *item,
 {
 	switch (to_nvmet_port(item)->disc_addr.trtype) {
 	case NVMF_TRTYPE_RDMA:
-		return sprintf(page, "rdma\n");
+		return snprintf(page, PAGE_SIZE, "rdma\n");
 	case NVMF_TRTYPE_LOOP:
-		return sprintf(page, "loop\n");
+		return snprintf(page, PAGE_SIZE, "loop\n");
 	case NVMF_TRTYPE_FC:
-		return sprintf(page, "fc\n");
+		return snprintf(page, PAGE_SIZE, "fc\n");
 	default:
-		return sprintf(page, "\n");
+		return snprintf(page, PAGE_SIZE, "\n");
 	}
 }
 
@@ -273,7 +273,7 @@ CONFIGFS_ATTR(nvmet_, addr_trtype);
  */
 static ssize_t nvmet_ns_device_path_show(struct config_item *item, char *page)
 {
-	return sprintf(page, "%s\n", to_nvmet_ns(item)->device_path);
+	return snprintf(page, PAGE_SIZE, "%s\n", to_nvmet_ns(item)->device_path);
 }
 
 static ssize_t nvmet_ns_device_path_store(struct config_item *item,
@@ -307,7 +307,7 @@ CONFIGFS_ATTR(nvmet_ns_, device_path);
 
 static ssize_t nvmet_ns_device_uuid_show(struct config_item *item, char *page)
 {
-	return sprintf(page, "%pUb\n", &to_nvmet_ns(item)->uuid);
+	return snprintf(page, PAGE_SIZE, "%pUb\n", &to_nvmet_ns(item)->uuid);
 }
 
 static ssize_t nvmet_ns_device_uuid_store(struct config_item *item,
@@ -335,7 +335,7 @@ out_unlock:
 
 static ssize_t nvmet_ns_device_nguid_show(struct config_item *item, char *page)
 {
-	return sprintf(page, "%pUb\n", &to_nvmet_ns(item)->nguid);
+	return snprintf(page, PAGE_SIZE, "%pUb\n", &to_nvmet_ns(item)->nguid);
 }
 
 CONFIGFS_ATTR(nvmet_ns_, device_uuid);
@@ -383,7 +383,7 @@ CONFIGFS_ATTR(nvmet_ns_, device_nguid);
 
 static ssize_t nvmet_ns_enable_show(struct config_item *item, char *page)
 {
-	return sprintf(page, "%d\n", to_nvmet_ns(item)->enabled);
+	return snprintf(page, PAGE_SIZE, "%d\n", to_nvmet_ns(item)->enabled);
 }
 
 static ssize_t nvmet_ns_enable_store(struct config_item *item,
