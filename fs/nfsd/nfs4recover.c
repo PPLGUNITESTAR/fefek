@@ -1172,7 +1172,7 @@ nfsd4_cltrack_grace_start(time_t grace_start)
 	char *result;
 
 	/* prefix + max width of int64_t string + terminating NULL */
-	len = strlen(GRACE_START_ENV_PREFIX) + 22 + 1;
+	len = strlen(GRACE_START_ENV_PREFIX) + sizeof(time_t) * 3 + 2 + 1;
 
 	result = kmalloc(len, GFP_KERNEL);
 	if (!result)
@@ -1388,9 +1388,9 @@ static void
 nfsd4_umh_cltrack_grace_done(struct nfsd_net *nn)
 {
 	char *legacy;
-	char timestr[22]; /* FIXME: better way to determine max size? */
+	char timestr[sizeof(time_t) * 3 + 2];
 
-	sprintf(timestr, "%ld", nn->boot_time);
+	snprintf(timestr, sizeof(timestr), "%ld", nn->boot_time);
 	legacy = nfsd4_cltrack_legacy_topdir();
 	nfsd4_umh_cltrack_upcall("gracedone", timestr, legacy, NULL);
 	kfree(legacy);
