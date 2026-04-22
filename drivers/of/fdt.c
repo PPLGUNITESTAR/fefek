@@ -349,7 +349,7 @@ static unsigned int populate_node(const void *blob,
 		if (new_format) {
 			/* rebuild full path for new format */
 			if (dad && dad->parent) {
-				strcpy(fn, dad->full_name);
+				strscpy(fn, dad->full_name, allocl);
 #ifdef DEBUG
 				if ((strlen(fn) + l + 1) != allocl) {
 					pr_debug("%s: p: %d, l: %d, a: %d\n",
