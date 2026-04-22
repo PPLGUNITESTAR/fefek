@@ -577,13 +577,13 @@ static unsigned long expand_and_crc_sym(struct symbol *sym, unsigned long crc)
 		case SYM_ENUM_CONST:
 		case SYM_TYPEDEF:
 			subsym = find_symbol(cur->string, cur->tag, 0);
-			/* FIXME: Bad reference files can segfault here. */
-			if (subsym->expansion_trail) {
+			/* Fall back to ignoring the symbol if we don't know it */
+			if (subsym && subsym->expansion_trail) {
 				if (flag_dump_defs)
 					fprintf(debugfile, "%s ", cur->string);
 				crc = partial_crc32(cur->string, crc);
 				crc = partial_crc32_one(' ', crc);
-			} else {
+			} else if (subsym) {
 				subsym->expansion_trail = expansion_trail;
 				expansion_trail = subsym;
 				crc = expand_and_crc_sym(subsym, crc);
