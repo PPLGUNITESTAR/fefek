@@ -44,10 +44,15 @@ _banner() {
 #  Global patch helpers — available to all build modules
 # =============================================================================
 
+# Accumulates total patch failures across all apply_patch_list calls.
+# finalize_build reads this to report patch health in the summary box.
+PATCH_FAILED_TOTAL=0
+
 # apply_patch_list [--fuzz=N] <label> <url> [<url>...]
 #   Downloads each patch to a temp file, detects already-applied patches via
 #   dry-run, and prints per-patch numbered status: OK / SKIP / WARN / FAIL.
 #   Optional --fuzz=N is forwarded to patch(1) for fuzzy context matching.
+#   Increments PATCH_FAILED_TOTAL on each rejected patch.
 #   Prints a group summary on completion.
 apply_patch_list() {
     # Optional --fuzz=N flag
@@ -104,6 +109,7 @@ apply_patch_list() {
             echo "$patch_out" | tail -5 | sed 's/^/             /'
             warn "         URL: $url"
             failed=$((failed + 1))
+            PATCH_FAILED_TOTAL=$((PATCH_FAILED_TOTAL + 1))
         fi
 
         rm -f "$tmpfile"
