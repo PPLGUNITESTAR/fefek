@@ -6,13 +6,10 @@
 add_goodies() {
     # ── BORE Scheduler ────────────────────────────────────────────────────────
     if [[ "$BORE_SELECTOR" == "bore" ]]; then
-        info "Injecting BORE scheduler..."
-        wget -qO- "https://github.com/ximi-mojito-test/android_kernel_xiaomi_mojito/commit/eff756aaf5d666a15d8ac19743b582c2ce0fe3aa.patch" \
-            | patch -s -p1 --fuzz=5
-        wget -qO- "https://github.com/ximi-mojito-test/android_kernel_xiaomi_mojito/commit/2220322065591df5ff7ae27cc1fff386d3631bd0.patch" \
-            | patch -s -p1 --fuzz=5
+        apply_patch_list --fuzz=5 "BORE" \
+            "https://github.com/ximi-mojito-test/android_kernel_xiaomi_mojito/commit/eff756aaf5d666a15d8ac19743b582c2ce0fe3aa.patch" \
+            "https://github.com/ximi-mojito-test/android_kernel_xiaomi_mojito/commit/2220322065591df5ff7ae27cc1fff386d3631bd0.patch"
         echo "CONFIG_SCHED_BORE=y" >> "$MAIN_DEFCONFIG"
-        success "BORE scheduler injected"
     else
         info "BORE scheduler skipped (mode=none)"
     fi
@@ -66,11 +63,9 @@ add_goodies() {
 
             local KSU_HOOK="$HOOK_SYSCALL"
             if [[ "$KERNELSU_SELECTOR" == "zako_susfs" || "$KERNELSU_SELECTOR" == "zako-susfs" ]]; then
-                info "Applying SUSFS patch (JackA1ltman/$KERNEL_VERSION)..."
-                wget -qO- "$SUSFS_PATCH" | patch -s -p1 --fuzz=5
+                apply_patch_list --fuzz=5 "SUSFS ($KERNEL_VERSION)" "$SUSFS_PATCH"
                 _append_susfs_configs
                 KSU_HOOK="$HOOK_SUSFS"
-                success "SUSFS enabled"
             else
                 info "ReSukiSU without SUSFS"
             fi
