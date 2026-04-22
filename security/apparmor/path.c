@@ -173,7 +173,7 @@ out:
 	 * case; it already ends in slash.
 	 */
 	if (!error && isdir && ((*name)[1] != '\0' || (*name)[0] != '/'))
-		strcpy(&buf[aa_g_path_max - 2], "/");
+		strscpy(&buf[aa_g_path_max - 2], "/", 2);
 
 	return error;
 }
