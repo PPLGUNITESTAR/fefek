@@ -86,7 +86,7 @@ static long key_get_persistent(struct user_namespace *ns, kuid_t uid,
 	/* Look in the register if it exists */
 	index_key.type = &key_type_keyring;
 	index_key.description = buf;
-	index_key.desc_len = sprintf(buf, "_persistent.%u", from_kuid(ns, uid));
+	index_key.desc_len = snprintf(buf, sizeof(buf), "_persistent.%u", from_kuid(ns, uid));
 
 	if (ns->persistent_keyring_register) {
 		reg_ref = make_key_ref(ns->persistent_keyring_register, true);
