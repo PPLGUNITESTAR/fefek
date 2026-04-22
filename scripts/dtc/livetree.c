@@ -386,6 +386,7 @@ struct dt_info *build_dt_info(unsigned int dtsflags,
 	dti->reservelist = reservelist;
 	dti->dt = tree;
 	dti->boot_cpuid_phys = boot_cpuid_phys;
+	dti->phandle_gen = 1;
 
 	return dti;
 }
@@ -571,15 +572,17 @@ struct node *get_node_by_ref(struct node *tree, const char *ref)
 		return get_node_by_label(tree, ref);
 }
 
-cell_t get_node_phandle(struct node *root, struct node *node)
+cell_t get_node_phandle(struct dt_info *dti, struct node *node)
 {
-	static cell_t phandle = 1; /* FIXME: ick, static local */
+	cell_t phandle;
 
 	if ((node->phandle != 0) && (node->phandle != -1))
 		return node->phandle;
 
-	while (get_node_by_phandle(root, phandle))
-		phandle++;
+	while (get_node_by_phandle(dti->dt, dti->phandle_gen))
+		dti->phandle_gen++;
+
+	phandle = dti->phandle_gen;
 
 	node->phandle = phandle;
 
@@ -806,7 +809,6 @@ static void generate_label_tree_internal(struct dt_info *dti,
 					 struct node *an, struct node *node,
 					 bool allocph)
 {
-	struct node *dt = dti->dt;
 	struct node *c;
 	struct property *p;
 	struct label *l;
@@ -835,7 +837,7 @@ static void generate_label_tree_internal(struct dt_info *dti,
 
 		/* force allocation of a phandle for this node */
 		if (allocph)
-			(void)get_node_phandle(dt, node);
+			(void)get_node_phandle(dti, node);
 	}
 
 	for_each_child(node, c)
