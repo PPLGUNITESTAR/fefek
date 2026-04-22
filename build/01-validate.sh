@@ -6,7 +6,7 @@
 
 validate_args() {
     [ $# -ne 5 ] && die "Usage: $0 [device] [ksu_mode] [bore_mode] [f2fs_mode] [toolchain]
-  ksu_mode  : none | zako | zako_susfs | ksunext | ksunext_susfs
+  ksu_mode  : none | zako | zako_susfs
   bore_mode : bore | none
   f2fs_mode : f2fs | none
   toolchain : neutron | lilium | kaleidoscope | greenforce"
@@ -18,8 +18,8 @@ validate_args() {
     export TOOLCHAIN_SELECTOR="$5"
 
     case "$KERNELSU_SELECTOR" in
-        none|zako|zako_susfs|zako-susfs|ksunext|ksunext_susfs) ;;
-        *) die "Invalid ksu_mode: '$KERNELSU_SELECTOR'. Valid: none | zako | zako_susfs | ksunext | ksunext_susfs" ;;
+        none|zako|zako_susfs|zako-susfs) ;;
+        *) die "Invalid ksu_mode: '$KERNELSU_SELECTOR'. Valid: none | zako | zako_susfs" ;;
     esac
 
     case "$BORE_SELECTOR" in
