@@ -46,7 +46,7 @@ phase()   { echo ""; echo "━━━ $* ━━━"; }
 phase "Phase 0 · Input Validation"
 
 [ $# -ne 5 ] && die "Usage: $0 [device] [ksu_mode] [bore_mode] [f2fs_mode] [toolchain]
-  ksu_mode  : none | ksu | ksu_susfs | zako | zako_susfs
+  ksu_mode  : none | zako | zako_susfs | ksunext | ksunext_susfs
   bore_mode : bore | none
   f2fs_mode : f2fs | none
   toolchain : neutron | lilium | kaleidoscope | greenforce"
@@ -58,8 +58,8 @@ export F2FS_SELECTOR="$4"
 export TOOLCHAIN_SELECTOR="$5"
 
 case "$KERNELSU_SELECTOR" in
-    none|ksu|ksu_susfs|zako|zako_susfs|zako-susfs) ;;
-    *) die "Invalid ksu_mode: '$KERNELSU_SELECTOR'. Valid: none | ksu | ksu_susfs | zako | zako_susfs" ;;
+    none|zako|zako_susfs|zako-susfs|ksunext|ksunext_susfs) ;;
+    *) die "Invalid ksu_mode: '$KERNELSU_SELECTOR'. Valid: none | zako | zako_susfs | ksunext | ksunext_susfs" ;;
 esac
 
 case "$BORE_SELECTOR" in
@@ -363,54 +363,117 @@ add_goodies() {
     success "Baseband Guard enabled"
 
     # ── KernelSU + optional SUSFS ─────────────────────────────────────────────
-    if [[ "$KERNELSU_SELECTOR" != "none" ]]; then
-        info "Setting up ReSukiSU..."
-        curl -LSs "https://github.com/ReSukiSU/ReSukiSU/raw/refs/heads/main/kernel/setup.sh" \
-            | bash -s main &>/dev/null
-        {
-            echo "CONFIG_KSU=y"
-            echo "CONFIG_KSU_MULTI_MANAGER_SUPPORT=y"
-            echo "CONFIG_KPM=n"
-            echo "CONFIG_KSU_MANUAL_HOOK=y"
-            echo "CONFIG_HAVE_SYSCALL_TRACEPOINTS=y"
-            echo "CONFIG_THREAD_INFO_IN_TASK=y"
-        } >> "$MAIN_DEFCONFIG"
+    case "$KERNELSU_SELECTOR" in
+        zako|zako_susfs|zako-susfs)
+            # ── ReSukiSU ─────────────────────────────────────────────────────
+            info "Setting up ReSukiSU..."
+            local KSU_URI="https://github.com/ReSukiSU/ReSukiSU/raw/refs/heads/main/kernel/setup.sh"
+            local KSU_BRANCH="main"
 
-        # SUSFS branch
-        if [[ "$KERNELSU_SELECTOR" == "zako_susfs" || "$KERNELSU_SELECTOR" == "zako-susfs" ]]; then
-            info "Applying SUSFS patch (JackA1ltman/4.14)..."
-            wget -qO- "https://github.com/JackA1ltman/NonGKI_Kernel_Build_2nd/raw/refs/heads/mainline/Patches/Patch/susfs_patch_to_4.14.patch" \
-                | patch -s -p1 --fuzz=5
+            if [[ "$KERNELSU_SELECTOR" == "zako_susfs" || "$KERNELSU_SELECTOR" == "zako-susfs" ]]; then
+                KSU_BRANCH="main"
+            fi
+
+            curl -LSs --fail --retry 3 "$KSU_URI" \
+                | bash -s $KSU_BRANCH &>/dev/null \
+                || die "ReSukiSU setup script failed to download/run"
+
             {
-                echo "CONFIG_KSU_SUSFS=y"
-                echo "CONFIG_KSU_SUSFS_SUS_PATH=y"
-                echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y"
-                echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y"
-                echo "CONFIG_KSU_SUSFS_SPOOF_UNAME=y"
-                echo "CONFIG_KSU_SUSFS_ENABLE_LOG=y"
-                echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y"
-                echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y"
-                echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y"
-                echo "CONFIG_KSU_SUSFS_SUS_MAP=y"
-                echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=y"
+                echo "CONFIG_KSU=y"
+                echo "CONFIG_KSU_MULTI_MANAGER_SUPPORT=y"
+                echo "CONFIG_KPM=n"
+                echo "CONFIG_KSU_MANUAL_HOOK=y"
+                echo "CONFIG_HAVE_SYSCALL_TRACEPOINTS=y"
+                echo "CONFIG_THREAD_INFO_IN_TASK=y"
             } >> "$MAIN_DEFCONFIG"
 
-            KSU_HOOK="https://github.com/JackA1ltman/NonGKI_Kernel_Build_2nd/raw/refs/heads/mainline/Patches/susfs_inline_hook_patches.sh"
-            success "SUSFS enabled"
-        else
-            KSU_HOOK="https://github.com/JackA1ltman/NonGKI_Kernel_Build_2nd/raw/refs/heads/mainline/Patches/syscall_hook_patches.sh"
-            info "KSU without SUSFS"
-        fi
+            if [[ "$KERNELSU_SELECTOR" == "zako_susfs" || "$KERNELSU_SELECTOR" == "zako-susfs" ]]; then
+                info "Applying SUSFS patch (JackA1ltman/$KERNEL_VERSION)..."
+                wget -qO- "https://github.com/JackA1ltman/NonGKI_Kernel_Build_2nd/raw/refs/heads/mainline/Patches/Patch/susfs_patch_to_${KERNEL_VERSION}.patch" \
+                    | patch -s -p1 --fuzz=5
+                {
+                    echo "CONFIG_KSU_SUSFS=y"
+                    echo "CONFIG_KSU_SUSFS_SUS_PATH=y"
+                    echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y"
+                    echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y"
+                    echo "CONFIG_KSU_SUSFS_SPOOF_UNAME=y"
+                    echo "CONFIG_KSU_SUSFS_ENABLE_LOG=y"
+                    echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y"
+                    echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y"
+                    echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y"
+                    echo "CONFIG_KSU_SUSFS_SUS_MAP=y"
+                    echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=y"
+                } >> "$MAIN_DEFCONFIG"
+                KSU_HOOK="https://github.com/JackA1ltman/NonGKI_Kernel_Build_2nd/raw/refs/heads/mainline/Patches/susfs_inline_hook_patches.sh"
+                success "SUSFS enabled"
+            else
+                KSU_HOOK="https://github.com/JackA1ltman/NonGKI_Kernel_Build_2nd/raw/refs/heads/mainline/Patches/syscall_hook_patches.sh"
+                info "ReSukiSU without SUSFS"
+            fi
 
-        info "Applying backport + hook patches..."
-        curl -LSs "https://github.com/JackA1ltman/NonGKI_Kernel_Build_2nd/raw/refs/heads/mainline/Patches/backport_patches.sh" \
-            | bash &>/dev/null
-        curl -LSs "$KSU_HOOK" | bash &>/dev/null
+            info "Applying backport + hook patches..."
+            curl -LSs "https://github.com/JackA1ltman/NonGKI_Kernel_Build_2nd/raw/refs/heads/mainline/Patches/backport_patches.sh" \
+                | bash &>/dev/null
+            curl -LSs "$KSU_HOOK" | bash &>/dev/null
+            success "ReSukiSU ready"
+            ;;
 
-        success "KernelSU ready"
-    else
-        info "KSU skipped (mode=none)"
-    fi
+        ksunext|ksunext_susfs)
+            # ── KernelSU-Next ────────────────────────────────────────────────
+            info "Setting up KernelSU-Next..."
+            local KSU_URI="https://github.com/KernelSU-Next/KernelSU-Next/raw/refs/heads/dev/kernel/setup.sh"
+            local KSU_BRANCH="legacy"
+
+            if [[ "$KERNELSU_SELECTOR" == "ksunext_susfs" ]]; then
+                KSU_BRANCH="legacy_susfs"
+            fi
+
+            curl -LSs --fail --retry 3 "$KSU_URI" \
+                | bash -s $KSU_BRANCH &>/dev/null \
+                || die "KernelSU-Next setup script failed to download/run"
+
+            {
+                echo "CONFIG_KSU=y"
+                echo "CONFIG_KSU_MANUAL_HOOK=y"
+                echo "CONFIG_HAVE_SYSCALL_TRACEPOINTS=y"
+                echo "CONFIG_THREAD_INFO_IN_TASK=y"
+            } >> "$MAIN_DEFCONFIG"
+
+            if [[ "$KERNELSU_SELECTOR" == "ksunext_susfs" ]]; then
+                info "Applying SUSFS patch (JackA1ltman/$KERNEL_VERSION)..."
+                wget -qO- "https://github.com/JackA1ltman/NonGKI_Kernel_Build_2nd/raw/refs/heads/mainline/Patches/Patch/susfs_patch_to_${KERNEL_VERSION}.patch" \
+                    | patch -s -p1 --fuzz=5
+                {
+                    echo "CONFIG_KSU_SUSFS=y"
+                    echo "CONFIG_KSU_SUSFS_SUS_PATH=y"
+                    echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y"
+                    echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y"
+                    echo "CONFIG_KSU_SUSFS_SPOOF_UNAME=y"
+                    echo "CONFIG_KSU_SUSFS_ENABLE_LOG=y"
+                    echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y"
+                    echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y"
+                    echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y"
+                    echo "CONFIG_KSU_SUSFS_SUS_MAP=y"
+                    echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=y"
+                } >> "$MAIN_DEFCONFIG"
+                KSU_HOOK="https://github.com/JackA1ltman/NonGKI_Kernel_Build_2nd/raw/refs/heads/mainline/Patches/susfs_inline_hook_patches.sh"
+                success "SUSFS enabled"
+            else
+                KSU_HOOK="https://github.com/JackA1ltman/NonGKI_Kernel_Build_2nd/raw/refs/heads/mainline/Patches/syscall_hook_patches.sh"
+                info "KernelSU-Next without SUSFS"
+            fi
+
+            info "Applying backport + hook patches..."
+            curl -LSs "https://github.com/JackA1ltman/NonGKI_Kernel_Build_2nd/raw/refs/heads/mainline/Patches/backport_patches.sh" \
+                | bash &>/dev/null
+            curl -LSs "$KSU_HOOK" | bash &>/dev/null
+            success "KernelSU-Next ready"
+            ;;
+
+        none)
+            info "KSU skipped (mode=none)"
+            ;;
+    esac
 }
 
 add_goodies

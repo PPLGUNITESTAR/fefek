@@ -45,7 +45,7 @@ jobs:
     strategy:
       matrix:
         build-type: [sweet]
-        ksu-type: [zako, zako_susfs, none]
+        ksu-type: [zako, zako_susfs, ksunext, ksunext_susfs, none]
 
     steps:
       - uses: actions/checkout@v6.0.2
@@ -163,21 +163,24 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## 🚀 Houdini Kernel for Sweet
+            ## Houdini Kernel for Sweet
 
             > [!CAUTION]
-            > **Always back up your `boot` and `dtbo` partitions** before attempting to flash!
+            > **Always back up your `boot` and `dtbo` partitions** before flashing!
 
-            ### 📦 Build Variants
+            ### Build variants
             | Variant | Root Solution | Optional Toggles | Extra Features |
             | :--- | :--- | :--- | :--- |
-            | 🌟 **`zako`** | **ReSukiSU** | `-BORE` & `-F2FS` | Standard Hook |
-            | 🛡️ **`zako_susfs`** | **ReSukiSU** | `-BORE` & `-F2FS` | **SUSFS** (Enhanced Hide) |
-            | 🧊 **`none`** | *(Unrooted)* | `-BORE` & `-F2FS` | Pure Vanilla |
+            | **`zako`** | ReSukiSU | `-BORE` & `-F2FS` | Standard Hook |
+            | **`zako_susfs`** | ReSukiSU | `-BORE` & `-F2FS` | SUSFS (Enhanced Hide) |
+            | **`ksunext`** | KernelSU-Next | `-BORE` & `-F2FS` | Standard Hook |
+            | **`ksunext_susfs`** | KernelSU-Next | `-BORE` & `-F2FS` | SUSFS (Enhanced Hide) |
+            | **`none`** | *(Unrooted)* | `-BORE` & `-F2FS` | Pure Vanilla |
 
             > [!NOTE]
-            > - **Compatibility:** Android 11 ➔ Android 16.
-            > - **Manager App:** Download the latest ReSukiSU Manager [**Right Here**](https://resukisu.github.io/guide/install.html#Get-manager).
+            > - **Compatibility:** Android 11 - Android 16.
+            > - **ReSukiSU Manager:** [Download here](https://resukisu.github.io/guide/install.html#Get-manager)
+            > - **KernelSU-Next Manager:** [Download here](https://github.com/KernelSU-Next/KernelSU-Next/releases)
 
             ---
 

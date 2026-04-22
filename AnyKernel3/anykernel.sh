@@ -28,16 +28,35 @@ if [ -f buildinfo.sh ]; then
   . ./buildinfo.sh;
   ui_print " ";
   ui_print "  Build Date : $BUILD_DATE";
-  ui_print "  Variant    : $BUILD_TYPE";
+
+  # Resolve root solution name from BUILD_TYPE
+  case "$BUILD_TYPE" in
+    zako)
+      ui_print "  Root       : ReSukiSU";
+      ui_print "  SUSFS      : Disabled";;
+    zako_susfs|zako-susfs)
+      ui_print "  Root       : ReSukiSU";
+      ui_print "  SUSFS      : Enabled";;
+    ksunext)
+      ui_print "  Root       : KernelSU-Next";
+      ui_print "  SUSFS      : Disabled";;
+    ksunext_susfs)
+      ui_print "  Root       : KernelSU-Next";
+      ui_print "  SUSFS      : Enabled";;
+    *)
+      ui_print "  Root       : Unrooted";
+      ui_print "  SUSFS      : N/A";;
+  esac;
+
   if [ "$BORE_MODE" = "bore" ]; then
     ui_print "  BORE Sched : Active";
   else
     ui_print "  BORE Sched : Inactive";
   fi;
   if [ "$F2FS_MODE" = "f2fs" ]; then
-    ui_print "  F2FS Compression : Enabled";
+    ui_print "  F2FS       : Enabled";
   else
-    ui_print "  F2FS Compression : Disabled";
+    ui_print "  F2FS       : Disabled";
   fi;
   if [ "$TOOLCHAIN" = "kaleidoscope" ]; then
     ui_print "  Compiler   : Kaleidoscope Clang";
