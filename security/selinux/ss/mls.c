@@ -88,25 +88,33 @@ int mls_compute_context_len(struct policydb *p, struct context *context)
  */
 void mls_sid_to_context(struct policydb *p,
 			struct context *context,
-			char **scontext)
+			char **scontext, u32 remaining_len)
 {
 	char *scontextp, *nm;
 	int i, l, head, prev;
 	struct ebitmap *e;
 	struct ebitmap_node *node;
+	int written;
 
 	if (!p->mls_enabled)
 		return;
 
 	scontextp = *scontext;
 
+	if (remaining_len < 2)
+		return;
+
 	*scontextp = ':';
 	scontextp++;
+	remaining_len--;
 
 	for (l = 0; l < 2; l++) {
-		strcpy(scontextp, sym_name(p, SYM_LEVELS,
-					   context->range.level[l].sens - 1));
-		scontextp += strlen(scontextp);
+		nm = sym_name(p, SYM_LEVELS, context->range.level[l].sens - 1);
+		written = snprintf(scontextp, remaining_len, "%s", nm);
+		if (written < 0 || written >= remaining_len)
+			return;
+		scontextp += written;
+		remaining_len -= written;
 
 		/* categories */
 		head = -2;
@@ -116,42 +124,66 @@ void mls_sid_to_context(struct policydb *p,
 			if (i - prev > 1) {
 				/* one or more negative bits are skipped */
 				if (prev != head) {
-					if (prev - head > 1)
+					if (prev - head > 1) {
+						if (remaining_len < 2) return;
 						*scontextp++ = '.';
-					else
+					} else {
+						if (remaining_len < 2) return;
 						*scontextp++ = ',';
+					}
+					remaining_len--;
 					nm = sym_name(p, SYM_CATS, prev);
-					strcpy(scontextp, nm);
-					scontextp += strlen(nm);
+					written = snprintf(scontextp, remaining_len, "%s", nm);
+					if (written < 0 || written >= remaining_len)
+						return;
+					scontextp += written;
+					remaining_len -= written;
 				}
-				if (prev < 0)
+				if (prev < 0) {
+					if (remaining_len < 2) return;
 					*scontextp++ = ':';
-				else
+				} else {
+					if (remaining_len < 2) return;
 					*scontextp++ = ',';
+				}
+				remaining_len--;
 				nm = sym_name(p, SYM_CATS, i);
-				strcpy(scontextp, nm);
-				scontextp += strlen(nm);
+				written = snprintf(scontextp, remaining_len, "%s", nm);
+				if (written < 0 || written >= remaining_len)
+					return;
+				scontextp += written;
+				remaining_len -= written;
 				head = i;
 			}
 			prev = i;
 		}
 
 		if (prev != head) {
-			if (prev - head > 1)
+			if (prev - head > 1) {
+				if (remaining_len < 2) return;
 				*scontextp++ = '.';
-			else
+			} else {
+				if (remaining_len < 2) return;
 				*scontextp++ = ',';
+			}
+			remaining_len--;
 			nm = sym_name(p, SYM_CATS, prev);
-			strcpy(scontextp, nm);
-			scontextp += strlen(nm);
+			written = snprintf(scontextp, remaining_len, "%s", nm);
+			if (written < 0 || written >= remaining_len)
+				return;
+			scontextp += written;
+			remaining_len -= written;
 		}
 
 		if (l == 0) {
 			if (mls_level_eq(&context->range.level[0],
 					 &context->range.level[1]))
 				break;
-			else
+			else {
+				if (remaining_len < 2) return;
 				*scontextp++ = '-';
+				remaining_len--;
+			}
 		}
 	}
 
