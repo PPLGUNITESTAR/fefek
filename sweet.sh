@@ -467,6 +467,25 @@ add_goodies() {
             curl -LSs "https://github.com/JackA1ltman/NonGKI_Kernel_Build_2nd/raw/refs/heads/mainline/Patches/backport_patches.sh" \
                 | bash &>/dev/null
             curl -LSs "$KSU_HOOK" | bash &>/dev/null
+            # Fix: BBG tracing.c defines selinux_cred() which this CAF 4.14 tree
+            # already declares in security/selinux/include/objsec.h — causing a
+            # "redefinition" build error. Strip the duplicate from BBG's copy;
+            # both are identical (cred->security accessor), so removal is safe.
+            if [ -f "security/baseband-guard/tracing/tracing.c" ]; then
+                python3 -c "
+import re
+path = 'security/baseband-guard/tracing/tracing.c'
+with open(path) as f:
+    src = f.read()
+src = re.sub(
+    r'[ \t]*static inline struct task_security_struct \*selinux_cred'
+    r'\(const struct cred \*cred\)\s*\{[^}]*\}\n?',
+    '', src)
+with open(path, 'w') as f:
+    f.write(src)
+" && info "BBG: selinux_cred redefinition conflict resolved" \
+               || warn "BBG: selinux_cred patch skipped (pattern not found)"
+            fi
             success "KernelSU-Next ready"
             ;;
 
