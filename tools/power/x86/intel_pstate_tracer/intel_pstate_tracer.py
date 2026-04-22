@@ -323,7 +323,7 @@ def set_4_plot_linestyles(g_plot):
     g_plot('set style line 3 linetype 1 linecolor rgb "purple" pointtype -1')
     g_plot('set style line 4 linetype 1 linecolor rgb "blue" pointtype -1')
 
-def store_csv(cpu_int, time_pre_dec, time_post_dec, core_busy, scaled, _from, _to, mperf, aperf, tsc, freq_ghz, io_boost, common_comm, load, duration_ms, sample_num, elapsed_time, tsc_ghz):
+def store_csv(f_handle, cpu_int, time_pre_dec, time_post_dec, core_busy, scaled, _from, _to, mperf, aperf, tsc, freq_ghz, io_boost, common_comm, load, duration_ms, sample_num, elapsed_time, tsc_ghz):
     """ Store master csv file information """
 
     global graph_data_present
@@ -332,10 +332,8 @@ def store_csv(cpu_int, time_pre_dec, time_post_dec, core_busy, scaled, _from, _t
         return
 
     try:
-        f_handle = open('cpu.csv', 'a')
         string_buffer = "CPU_%03u, %05u, %06u, %u, %u, %u, %u, %u, %u, %u, %.4f, %u, %.2f, %.3f, %u, %.3f, %.3f, %s\n" % (cpu_int, int(time_pre_dec), int(time_post_dec), int(core_busy), int(scaled), int(_from), int(_to), int(mperf), int(aperf), int(tsc), freq_ghz, int(io_boost), load, duration_ms, sample_num, elapsed_time, tsc_ghz, common_comm)
         f_handle.write(string_buffer);
-        f_handle.close()
     except:
         print('IO error cpu.csv')
         return
@@ -423,6 +421,12 @@ def read_trace_data(filename):
         print('Error opening ', filename)
         quit()
 
+    try:
+        f_handle = open('cpu.csv', 'a')
+    except:
+        print('IO error cpu.csv')
+        return
+
     for line in data.splitlines():
         search_obj = \
             re.search(r'(^(.*?)\[)((\d+)[^\]])(.*?)(\d+)([.])(\d+)(.*?core_busy=)(\d+)(.*?scaled=)(\d+)(.*?from=)(\d+)(.*?to=)(\d+)(.*?mperf=)(\d+)(.*?aperf=)(\d+)(.*?tsc=)(\d+)(.*?freq=)(\d+)'
@@ -471,11 +475,12 @@ def read_trace_data(filename):
                 tsc_ghz = Decimal(0)
                 if duration_ms != Decimal(0) :
                     tsc_ghz = Decimal(tsc)/duration_ms/Decimal(1000000)
-                store_csv(cpu_int, time_pre_dec, time_post_dec, core_busy, scaled, _from, _to, mperf, aperf, tsc, freq_ghz, io_boost, common_comm, load, duration_ms, sample_num, elapsed_time, tsc_ghz)
+                store_csv(f_handle, cpu_int, time_pre_dec, time_post_dec, core_busy, scaled, _from, _to, mperf, aperf, tsc, freq_ghz, io_boost, common_comm, load, duration_ms, sample_num, elapsed_time, tsc_ghz)
 
             if cpu_int > current_max_cpu:
                 current_max_cpu = cpu_int
 # End of for each trace line loop
+    f_handle.close()
 # Now seperate the main overall csv file into per CPU csv files.
     split_csv()
 
