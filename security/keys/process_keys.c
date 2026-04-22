@@ -72,7 +72,7 @@ int install_user_keyrings(void)
 		 * - there may be one in existence already as it may have been
 		 *   pinned by a session, but the user_struct pointing to it
 		 *   may have been destroyed by setuid */
-		sprintf(buf, "_uid.%u", uid);
+		snprintf(buf, sizeof(buf), "_uid.%u", uid);
 
 		uid_keyring = find_keyring_by_name(buf, true);
 		if (IS_ERR(uid_keyring)) {
@@ -89,7 +89,7 @@ int install_user_keyrings(void)
 
 		/* get a default session keyring (which might also exist
 		 * already) */
-		sprintf(buf, "_uid_ses.%u", uid);
+		snprintf(buf, sizeof(buf), "_uid_ses.%u", uid);
 
 		session_keyring = find_keyring_by_name(buf, true);
 		if (IS_ERR(session_keyring)) {
