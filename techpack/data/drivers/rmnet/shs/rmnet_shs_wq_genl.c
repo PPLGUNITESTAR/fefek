@@ -64,7 +64,7 @@ struct genl_family rmnet_shs_genl_family = {
 
 int rmnet_shs_genl_send_int_to_userspace(struct genl_info *info, int val)
 {
-	struct sk_buff *skb;
+	struct sk_buff *skb = NULL;
 	void *msg_head;
 	int rc;
 
@@ -94,15 +94,15 @@ int rmnet_shs_genl_send_int_to_userspace(struct genl_info *info, int val)
 	return 0;
 
 out:
-	if (skb)
-		kfree_skb(skb);
+	/* TODO: Need to free skb?? */
+	kfree_skb(skb);
 	rm_err("SHS_GNL: FAILED to send int %d\n", val);
 	return -1;
 }
 
 int rmnet_shs_genl_send_int_to_userspace_no_info(int val)
 {
-	struct sk_buff *skb;
+	struct sk_buff *skb = NULL;
 	void *msg_head;
 	int rc;
 
@@ -138,8 +138,8 @@ int rmnet_shs_genl_send_int_to_userspace_no_info(int val)
 	return 0;
 
 out:
-	if (skb)
-		kfree_skb(skb);
+	/* TODO: Need to free skb?? */
+	kfree_skb(skb);
 	rm_err("SHS_GNL: FAILED to send int %d\n", val);
 	rmnet_shs_userspace_connected = 0;
 	return -1;
@@ -148,7 +148,7 @@ out:
 
 int rmnet_shs_genl_send_msg_to_userspace(void)
 {
-	struct sk_buff *skb;
+	struct sk_buff *skb = NULL;
 	void *msg_head;
 	int rc;
 	int val = rmnet_shs_genl_seqnum++;
@@ -177,8 +177,8 @@ int rmnet_shs_genl_send_msg_to_userspace(void)
 	return 0;
 
 out:
-	if (skb)
-		kfree_skb(skb);
+	/* TODO: Need to free skb?? */
+	kfree_skb(skb);
 	rm_err("SHS_GNL: FAILED to send int %d\n", val);
 	rmnet_shs_userspace_connected = 0;
 	return -1;

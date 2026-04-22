@@ -167,7 +167,7 @@ static ssize_t capability_id_show(struct device *dev, struct device_attribute *a
 {
 	struct umc_dev *umc = to_umc_dev(dev);
 
-	return sprintf(buf, "0x%02x\n", umc->cap_id);
+	return snprintf(buf, PAGE_SIZE, "0x%02x\n", umc->cap_id);
 }
 static DEVICE_ATTR_RO(capability_id);
 
@@ -175,7 +175,7 @@ static ssize_t version_show(struct device *dev, struct device_attribute *attr, c
 {
 	struct umc_dev *umc = to_umc_dev(dev);
 
-	return sprintf(buf, "0x%04x\n", umc->version);
+	return snprintf(buf, PAGE_SIZE, "0x%04x\n", umc->version);
 }
 static DEVICE_ATTR_RO(version);
 

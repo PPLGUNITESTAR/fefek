@@ -304,13 +304,8 @@ static void add_ordered_member(struct dlm_ls *ls, struct dlm_member *new)
 
 	if (!memb)
 		list_add_tail(newlist, head);
-	else {
-		/* FIXME: can use list macro here */
-		newlist->prev = tmp->prev;
-		newlist->next = tmp;
-		tmp->prev->next = newlist;
-		tmp->prev = newlist;
-	}
+	else
+		list_add_tail(newlist, tmp);
 }
 
 static int dlm_add_member(struct dlm_ls *ls, struct dlm_config_node *node)

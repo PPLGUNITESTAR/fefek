@@ -492,13 +492,14 @@ bool aa_policy_init(struct aa_policy *policy, const char *prefix,
 
 	/* freed by policy_free */
 	if (prefix) {
-		hname = aa_str_alloc(strlen(prefix) + strlen(name) + 3, gfp);
+		size_t name_len = strlen(prefix) + strlen(name) + 3;
+		hname = aa_str_alloc(name_len, gfp);
 		if (hname)
-			sprintf(hname, "%s//%s", prefix, name);
+			snprintf(hname, name_len, "%s//%s", prefix, name);
 	} else {
 		hname = aa_str_alloc(strlen(name) + 1, gfp);
 		if (hname)
-			strcpy(hname, name);
+			strscpy(hname, name, strlen(name) + 1);
 	}
 	if (!hname)
 		return false;
