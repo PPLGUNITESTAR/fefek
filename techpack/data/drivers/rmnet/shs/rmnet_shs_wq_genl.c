@@ -85,14 +85,17 @@ int rmnet_shs_genl_send_int_to_userspace(struct genl_info *info, int val)
 	genlmsg_end(skb, msg_head);
 
 	rc = genlmsg_unicast(genl_info_net(info), skb, info->snd_portid);
-	if (rc != 0)
+	if (rc != 0) {
+		skb = NULL;
 		goto out;
+	}
 
 	rm_err("SHS_GNL: Successfully sent int %d\n", val);
 	return 0;
 
 out:
-	/* TODO: Need to free skb?? */
+	if (skb)
+		kfree_skb(skb);
 	rm_err("SHS_GNL: FAILED to send int %d\n", val);
 	return -1;
 }
@@ -126,14 +129,17 @@ int rmnet_shs_genl_send_int_to_userspace_no_info(int val)
 	genlmsg_end(skb, msg_head);
 
 	rc = genlmsg_unicast(last_net, skb, last_snd_portid);
-	if (rc != 0)
+	if (rc != 0) {
+		skb = NULL;
 		goto out;
+	}
 
 	rm_err("SHS_GNL: Successfully sent int %d\n", val);
 	return 0;
 
 out:
-	/* TODO: Need to free skb?? */
+	if (skb)
+		kfree_skb(skb);
 	rm_err("SHS_GNL: FAILED to send int %d\n", val);
 	rmnet_shs_userspace_connected = 0;
 	return -1;
@@ -165,12 +171,14 @@ int rmnet_shs_genl_send_msg_to_userspace(void)
 	genlmsg_end(skb, msg_head);
 
 	genlmsg_multicast(&rmnet_shs_genl_family, skb, 0, 0, GFP_ATOMIC);
+	skb = NULL;
 
 	rm_err("SHS_GNL: Successfully sent int %d\n", val);
 	return 0;
 
 out:
-	/* TODO: Need to free skb?? */
+	if (skb)
+		kfree_skb(skb);
 	rm_err("SHS_GNL: FAILED to send int %d\n", val);
 	rmnet_shs_userspace_connected = 0;
 	return -1;
