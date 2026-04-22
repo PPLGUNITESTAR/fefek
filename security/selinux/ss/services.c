@@ -1263,7 +1263,7 @@ static int context_struct_to_string(struct policydb *p,
 		sym_name(p, SYM_ROLES, context->role - 1),
 		sym_name(p, SYM_TYPES, context->type - 1));
 
-	mls_sid_to_context(p, context, &scontextp);
+	mls_sid_to_context(p, context, &scontextp, *scontext_len - (scontextp - *scontext));
 
 	*scontextp = 0;
 
