@@ -416,6 +416,8 @@ void lru_gen_init_lruvec(struct lruvec *lruvec);
 void *lru_gen_eviction(struct page *page);
 void lru_gen_refault(struct page *page, void *shadow);
 void lru_gen_look_around(struct page_vma_mapped_walk *pvmw);
+extern bool lru_gen_enabled(void);
+extern bool lru_gen_in_fault(void);
 
 #ifdef CONFIG_MEMCG
 void lru_gen_init_memcg(struct mem_cgroup *memcg);
@@ -439,6 +441,16 @@ static inline void lru_gen_refault(struct page *page, void *shadow)
 
 static inline void lru_gen_look_around(struct page_vma_mapped_walk *pvmw)
 {
+}
+
+static inline bool lru_gen_enabled(void)
+{
+	return false;
+}
+
+static inline bool lru_gen_in_fault(void)
+{
+	return false;
 }
 
 #ifdef CONFIG_MEMCG

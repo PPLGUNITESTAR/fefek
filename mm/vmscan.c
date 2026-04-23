@@ -179,9 +179,7 @@ static DECLARE_RWSEM(shrinker_rwsem);
 extern atomic_long_t kshrinkd_waiters;
 
 #ifdef CONFIG_LRU_GEN
-/* forward declarations — defined later in the MGLRU block */
-static bool lru_gen_enabled(void);
-static bool lru_gen_in_fault(void);
+/* lru_gen_enabled and lru_gen_in_fault are declared in mmzone.h */
 #endif
 
 #ifdef CONFIG_MEMCG
@@ -2548,12 +2546,12 @@ static bool get_cap(int cap)
 #endif
 }
 
-static bool lru_gen_enabled(void)
+bool lru_gen_enabled(void)
 {
 	return get_cap(LRU_GEN_CORE);
 }
 
-static bool lru_gen_in_fault(void)
+bool lru_gen_in_fault(void)
 {
 	return get_cap(LRU_GEN_MM_WALK);
 }
