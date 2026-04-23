@@ -92,6 +92,30 @@
 #define KASAN_TAG_WIDTH 0
 #endif
 
+#ifdef CONFIG_LRU_GEN
+/*
+ * LRU_GEN requires order_base_2(MAX_NR_GENS+1) = 3 bits for the generation
+ * counter stored in page->flags, plus MAX_NR_TIERS-2 = 2 bits for the tier
+ * reference counter.  The constants are fixed by the MGLRU design (MAX_NR_GENS=4,
+ * MAX_NR_TIERS=4) and are hardcoded here to avoid a circular include dependency
+ * with mmzone.h.
+ */
+#define LRU_GEN_WIDTH		3
+#define LRU_REFS_WIDTH		2
+#if SECTIONS_WIDTH+NODES_WIDTH+ZONES_WIDTH+LAST_CPUPID_WIDTH \
+	+KASAN_TAG_WIDTH+LRU_GEN_WIDTH+LRU_REFS_WIDTH > BITS_PER_LONG - NR_PAGEFLAGS
+#error "LRU_GEN: not enough bits in page->flags; trim NODES or disable LRU_GEN"
+#endif
+#else
+#define LRU_GEN_WIDTH		0
+#define LRU_REFS_WIDTH		0
+#endif /* CONFIG_LRU_GEN */
+
+/* Bit offsets: each field is packed above the previous one. */
+#define LRU_GEN_PGOFF		(KASAN_TAG_WIDTH + LAST_CPUPID_WIDTH + \
+				 ZONES_WIDTH + NODES_WIDTH + SECTIONS_WIDTH)
+#define LRU_REFS_PGOFF		(LRU_GEN_PGOFF + LRU_GEN_WIDTH)
+
 /*
  * We are going to use the flags for the page to node mapping if its in
  * there.  This includes the case where there is no node, so it is implicit.
