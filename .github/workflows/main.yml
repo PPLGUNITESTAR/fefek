@@ -31,9 +31,6 @@ on:
           - kaleidoscope
           - greenforce
 
-  schedule:
-    - cron: "5 3 * * 0"
-
 permissions:
   contents: write
 
@@ -96,7 +93,7 @@ jobs:
           echo "Starting to compile..."
           cd android_kernel_xiaomi_sm6150/
           BORE_VAL="none"
-          if [[ "${{ github.event.inputs.bore }}" == "true" || "${{ github.event_name }}" == "schedule" ]]; then
+          if [[ "${{ github.event.inputs.bore }}" == "true" ]]; then
             BORE_VAL="bore"
           fi
           F2FS_VAL="none"
@@ -116,7 +113,7 @@ jobs:
       - name: Pack kernel with AnyKernel3
         run: |
           BORE_TAG=""
-          if [[ "${{ github.event.inputs.bore }}" == "true" || "${{ github.event_name }}" == "schedule" ]]; then
+          if [[ "${{ github.event.inputs.bore }}" == "true" ]]; then
             BORE_TAG="-BORE"
           fi
           F2FS_TAG=""
@@ -159,30 +156,44 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: kernel-weekly-${{ needs.build.outputs.timestamp }}
-          name: Weekly - ${{ needs.build.outputs.date }}
+          tag_name: kernel-build-${{ needs.build.outputs.timestamp }}
+          name: Houdini Kernel Build - ${{ needs.build.outputs.date }}
           draft: false
           prerelease: false
           body: |
-            ## Houdini Kernel for Sweet
-
-            > [!CAUTION]
-            > **Always back up your `boot` and `dtbo` partitions** before flashing!
-
-            ### Build variants
-            | Variant | Root Solution | Optional Toggles | Extra Features |
-            | :--- | :--- | :--- | :--- |
-            | **`zako`** | ReSukiSU | `-BORE` & `-F2FS` | Standard Hook |
-            | **`zako_susfs`** | ReSukiSU | `-BORE` & `-F2FS` | SUSFS (Enhanced Hide) |
-            | **`none`** | *(Unrooted)* | `-BORE` & `-F2FS` | Pure Vanilla |
-
-            > [!NOTE]
-            > - **Compatibility:** Android 11 - Android 16.
-            > - **ReSukiSU Manager:** [Download here](https://resukisu.github.io/guide/install.html#Get-manager)
+            # Houdini Kernel for Sweet
+            *Yet another sloppy custom kernel for Redmi Note 10 Pro.*
 
             ---
 
-            ### 📝 Recent Commits
+            > [!CAUTION]
+            > ** FLASH AT YOUR OWN RISK!**
+            > Always remember to back up your `boot` and `dtbo` partitions before proceeding. We are not responsible for any damage or data loss.
+
+            ### Build Variants Overview
+
+            Choose the variant that best matches your setup. All builds support optional `-BORE` and `-F2FS` enhancements.
+
+            | Variant | Root Solution | Features & Hooks | Recommended For |
+            | :--- | :--- | :--- | :--- |
+            | **`zako`** | [ReSukiSU](https://resukisu.github.io/guide/install.html) | Standard Hooks | General users needing root access |
+            | **`zako_susfs`** | [ReSukiSU](https://resukisu.github.io/guide/install.html) | SUSFS (Enhanced Hide) | Users who need strict root hiding (Banking/Games) |
+            | **`none`** | *(Unrooted)* | Pure Vanilla | Users looking for maximum stability without root |
+
+            ### Important Notes
+
+            > [!NOTE]
+            > - **Compatibility:** Seamlessly supports **Android 11** up to **Android 16**.
+            > - **Manager App:** If flashing a `zako` variant, grab the latest **ReSukiSU Manager** from [the official site](https://resukisu.github.io/guide/install.html#Get-manager).
+            > - **Installation:** Flash the provided `.zip` files via a custom recovery (TWRP/OrangeFox) or a kernel flasher app (FKM/Kernel Flasher).
+
+            ---
+
+            <details>
+            <summary><b>Click to expand Changelog & Recent Commits</b></summary>
+
             ${{ needs.build.outputs.changelog }}
+
+            </details>
           files: artifacts/**/*.zip
           overwrite_files: true
