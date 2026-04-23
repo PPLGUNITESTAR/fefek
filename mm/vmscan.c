@@ -2539,6 +2539,16 @@ static bool get_cap(int cap)
 #endif
 }
 
+static bool lru_gen_enabled(void)
+{
+	return get_cap(LRU_GEN_CORE);
+}
+
+static bool lru_gen_in_fault(void)
+{
+	return get_cap(LRU_GEN_MM_WALK);
+}
+
 static struct lruvec *get_lruvec(struct mem_cgroup *memcg, int nid)
 {
 	struct pglist_data *pgdat = NODE_DATA(nid);
@@ -6505,9 +6515,7 @@ static int kswapd_cpu_online(unsigned int cpu)
 	return 0;
 }
 
-/*
- * This kswapd start function will be called by init and node-hot-add.
- * On node-hot-add, kswapd will moved to proper cpus if cpus are hot-added.
+
 static int kshrinkd(void *pgdat)
 {
 	pg_data_t *p = pgdat;
@@ -6545,6 +6553,9 @@ static int kshrinkd(void *pgdat)
 	return 0;
 }
 
+/*
+ * This kswapd start function will be called by init and node-hot-add.
+ * On node-hot-add, kswapd will moved to proper cpus if cpus are hot-added.
  */
 int kswapd_run(int nid)
 {

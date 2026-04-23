@@ -4128,6 +4128,7 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
 	unsigned int cpuset_mems_cookie;
 	unsigned int zonelist_iter_cookie;
 	int reserve_flags;
+	bool woke_kshrinkd = false;
 
 	/*
 	 * We also sanity check to catch abuse of atomic reserves being used by
@@ -4255,6 +4256,18 @@ retry:
 		goto nopage;
 
 	/* Try direct reclaim and then allocating */
+	if (!woke_kshrinkd) {
+		/*
+		 * smp_mb__after_atomic() pairs with the wait_event_freezable()
+		 * in kshrinkd(). This is needed to order the waitqueue_active()
+		 * check inside wake_all_kshrinkds().
+		 */
+		atomic_long_inc(&kshrinkd_waiters);
+		smp_mb__after_atomic();
+		wake_all_kshrinkds(ac);
+		woke_kshrinkd = true;
+	}
+
 	page = __alloc_pages_direct_reclaim(gfp_mask, order, alloc_flags, ac,
 							&did_some_progress);
 	if (page)
@@ -4373,6 +4386,8 @@ fail:
 	warn_alloc(gfp_mask, ac->nodemask,
 			"page allocation failure: order:%u", order);
 got_pg:
+	if (woke_kshrinkd)
+		atomic_long_dec(&kshrinkd_waiters);
 	return page;
 }
 
