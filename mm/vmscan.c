@@ -175,6 +175,15 @@ static LIST_HEAD(shrinker_list);
 static DEFINE_SPINLOCK(shrinker_lock);
 static DECLARE_RWSEM(shrinker_rwsem);
 
+/* defined in mm/page_alloc.c, used by kshrinkd() */
+extern atomic_long_t kshrinkd_waiters;
+
+#ifdef CONFIG_LRU_GEN
+/* forward declarations — defined later in the MGLRU block */
+static bool lru_gen_enabled(void);
+static bool lru_gen_in_fault(void);
+#endif
+
 #ifdef CONFIG_MEMCG
 static bool global_reclaim(struct scan_control *sc)
 {
