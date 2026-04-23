@@ -167,7 +167,7 @@ jobs:
             ---
 
             > [!CAUTION]
-            > ** FLASH AT YOUR OWN RISK!**
+            > **FLASH AT YOUR OWN RISK!**
             > Always remember to back up your `boot` and `dtbo` partitions before proceeding. We are not responsible for any damage or data loss.
 
             ### Build Variants Overview
