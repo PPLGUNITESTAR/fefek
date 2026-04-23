@@ -5186,6 +5186,11 @@ static void shrink_node_memcg(struct pglist_data *pgdat, struct mem_cgroup *memc
 	struct blk_plug plug;
 	bool scan_adjusted;
 
+	if (lru_gen_enabled()) {
+		*lru_pages = lru_gen_shrink_lruvec(lruvec, sc);
+		return;
+	}
+
 	get_scan_count(lruvec, memcg, sc, nr, lru_pages);
 
 	/* Record the original scan target for proportional adjustments later */
@@ -5959,6 +5964,11 @@ static void age_active_anon(struct pglist_data *pgdat,
 				struct scan_control *sc)
 {
 	struct mem_cgroup *memcg;
+
+	if (lru_gen_enabled()) {
+		lru_gen_age_node(pgdat, sc);
+		return;
+	}
 
 	if (!total_swap_pages)
 		return;

@@ -304,7 +304,7 @@ void delete_from_swap_cache(struct page *page)
 
 	address_space = swap_address_space(entry);
 	spin_lock_irq(&address_space->tree_lock);
-	__delete_from_swap_cache(page);
+	__delete_from_swap_cache(page, NULL);
 	spin_unlock_irq(&address_space->tree_lock);
 
 	put_swap_page(page, entry);
