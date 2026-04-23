@@ -224,7 +224,7 @@ static int param_get_active(char *buf, const struct kernel_param *kp)
 {
 	/*
 	 * Output "Y"/"N" to match the kernel convention for bool
-	 * module_params (e.g. /sys/module/*/parameters/).
+	 * module_params (e.g. /sys/module/<name>/parameters/).
 	 */
 	return scnprintf(buf, PAGE_SIZE, "%c\n",
 			 atomic_read(&ai_tunables.active) ? 'Y' : 'N');
