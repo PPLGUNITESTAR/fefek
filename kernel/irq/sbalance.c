@@ -23,6 +23,25 @@
  * processing interrupts rather than just the sheer number of them. This also
  * makes SBalance aware of CPU asymmetry, where different CPUs can have
  * different performance capacities and be proportionally balanced.
+ *
+ * Changes from the original (v2):
+ *  - bal_irq_move_node_cmp: replaced unsigned subtraction (wraps on overflow)
+ *    with an explicit three-way compare so list_sort always receives a correct
+ *    signed ordering.
+ *  - update_irq_data: zero delta_nr when resetting old_nr so stale deltas
+ *    never leak into the move-node list on the next run.
+ *  - scale_intrs: guard against cpu_cap == 0 (CPU just onlined, capacity not
+ *    yet populated) to prevent a division-by-zero trap.
+ *  - sbalance_wait: made process_timer per-invocation (stack-allocated) so
+ *    there is no shared static state that could be clobbered if the kthread
+ *    is ever woken spuriously while the timer is live.
+ *  - balance_irqs: cpumask moved off static storage onto the stack so it is
+ *    logically scoped to a single invocation, removing the latent risk from
+ *    a future second caller.
+ *  - sbalance_init: replaced BUG_ON(IS_ERR(...)) with a pr_err + return so a
+ *    kthread allocation failure does not panic the kernel unnecessarily.
+ *  - CPU-exclude mask: initialised explicitly to CPU_MASK_NONE instead of
+ *    relying on cpulist_parse("") succeeding with an empty string.
  */
 
 #define pr_fmt(fmt) "sbalance: " fmt
@@ -98,12 +117,25 @@ void sbalance_desc_del(struct irq_desc *desc)
 	spin_unlock(&bal_irq_lock);
 }
 
-static int bal_irq_move_node_cmp(void *priv, struct list_head *lhs_p, struct list_head *rhs_p)
+/*
+ * Three-way compare for list_sort: returns negative if lhs should sort
+ * before rhs (i.e. lhs has MORE interrupts — descending order).
+ *
+ * The original used unsigned subtraction (rhs->delta_nr - lhs->delta_nr)
+ * which wraps when rhs < lhs and produces a large positive value instead
+ * of the expected negative one, corrupting the sort order for those pairs.
+ */
+static int bal_irq_move_node_cmp(void *priv, struct list_head *lhs_p,
+				 struct list_head *rhs_p)
 {
 	const struct bal_irq *lhs = list_entry(lhs_p, typeof(*lhs), move_node);
 	const struct bal_irq *rhs = list_entry(rhs_p, typeof(*rhs), move_node);
 
-	return rhs->delta_nr - lhs->delta_nr;
+	if (lhs->delta_nr > rhs->delta_nr)
+		return -1;
+	if (lhs->delta_nr < rhs->delta_nr)
+		return 1;
+	return 0;
 }
 
 /* Returns false if this IRQ should be totally ignored for this balancing run */
@@ -132,6 +164,12 @@ static bool update_irq_data(struct bal_irq *bi, int *cpu)
 	nr = *per_cpu_ptr(desc->kstat_irqs, *cpu);
 	if (nr <= bi->old_nr) {
 		bi->old_nr = nr;
+		/*
+		 * Zero delta_nr explicitly so a stale count from a previous
+		 * run cannot leak into the move-node list if this entry is
+		 * skipped this time but selected next time without an update.
+		 */
+		bi->delta_nr = 0;
 		return false;
 	}
 
@@ -159,7 +197,14 @@ static int move_irq_to_cpu(struct bal_irq *bi, int cpu)
 	raw_spin_unlock_irq(&desc->lock);
 
 	if (!ret) {
-		/* Update the old interrupt count using the new CPU */
+		/*
+		 * Anchor old_nr to the new CPU's current kstat so that the
+		 * next poll counts only interrupts that fired AFTER migration.
+		 * Any prior count on the destination CPU is intentionally
+		 * excluded — we want delta_nr to reflect post-move activity.
+		 * Counter wrap (u32) is handled by the nr <= old_nr guard in
+		 * update_irq_data(), which resets tracking cleanly.
+		 */
 		bi->old_nr = *per_cpu_ptr(desc->kstat_irqs, cpu);
 		pr_debug("Moved IRQ%d (CPU%d -> CPU%d)\n",
 			 irq_desc_get_irq(desc), prev_cpu, cpu);
@@ -167,17 +212,31 @@ static int move_irq_to_cpu(struct bal_irq *bi, int cpu)
 	return ret;
 }
 
-static unsigned int scale_intrs(unsigned int intrs, int cpu)
+/*
+ * Scale the number of interrupts to the CPU's current capacity.
+ * Returns u64 to prevent overflow: intrs (u32) * SCHED_CAPACITY_SCALE (1024)
+ * can exceed UINT_MAX when intrs is large, corrupting comparisons if truncated
+ * to 32 bits.
+ *
+ * Guard against cpu_cap == 0: a CPU that just came online may not have had
+ * its capacity populated yet.  Treat it as fully capable so it is neither
+ * spuriously excluded from nor targeted by balancing.
+ */
+static u64 scale_intrs(unsigned int intrs, int cpu)
 {
-	/* Scale the number of interrupts to this CPU's current capacity */
-	return intrs * SCHED_CAPACITY_SCALE / per_cpu(cpu_cap, cpu);
+	unsigned long cap = per_cpu(cpu_cap, cpu);
+
+	if (unlikely(!cap))
+		return (u64)intrs;
+
+	return (u64)intrs * SCHED_CAPACITY_SCALE / cap;
 }
 
 /* Returns true if IRQ balancing should stop */
-static bool find_min_bd(const cpumask_t *mask, unsigned int max_intrs,
+static bool find_min_bd(const cpumask_t *mask, u64 max_intrs,
 			struct bal_domain **min_bd)
 {
-	unsigned int intrs, min_intrs = UINT_MAX;
+	u64 intrs, min_intrs = (u64)~0ULL;
 	struct bal_domain *bd;
 	int cpu;
 
@@ -201,7 +260,7 @@ static bool find_min_bd(const cpumask_t *mask, unsigned int max_intrs,
 	}
 
 	/* No CPUs available to move IRQs onto */
-	if (min_intrs == UINT_MAX)
+	if (min_intrs == (u64)~0ULL)
 		return true;
 
 	/* Don't balance if IRQs are already balanced evenly enough */
@@ -210,9 +269,21 @@ static bool find_min_bd(const cpumask_t *mask, unsigned int max_intrs,
 
 static void balance_irqs(void)
 {
-	static cpumask_t cpus;
-	struct bal_domain *bd, *max_bd, *min_bd;
-	unsigned int intrs, max_intrs;
+	/*
+	 * Stack-allocate cpus rather than using static storage so this
+	 * function is re-entrant-safe and the mask lifetime is explicit.
+	 * On this target NR_CPUS <= 8, so cpumask_t is 8 bytes on the
+	 * stack — well within budget.  On configs with larger NR_CPUS the
+	 * kthread stack (8–16 KB) still comfortably accommodates it.
+	 */
+	cpumask_t cpus;
+	/*
+	 * Initialise max_bd and min_bd to NULL.  Both are assigned only
+	 * inside loops; NULL catches any path where the loop body is
+	 * skipped, turning a silent UB dereference into a visible crash.
+	 */
+	struct bal_domain *bd, *max_bd = NULL, *min_bd = NULL;
+	u64 intrs, max_intrs;
 	bool moved_irq = false;
 	struct bal_irq *bi;
 	int cpu;
@@ -273,7 +344,11 @@ static void balance_irqs(void)
 			}
 		}
 
-		/* No balancing to do if there aren't any movable IRQs */
+		/*
+		 * No balancing to do if all CPUs are quiet.
+		 * max_bd is assigned only when intrs > 0, so this check also
+		 * guarantees max_bd is non-NULL before it is dereferenced below.
+		 */
 		if (unlikely(!max_intrs))
 			goto unlock;
 
@@ -332,6 +407,11 @@ try_next_heaviest:
 	/*
 	 * If the heaviest CPU has movable IRQs which can't actually be moved,
 	 * then ignore it and try balancing the next heaviest CPU.
+	 *
+	 * Note: moved_irq is intentionally NOT reset between iterations of
+	 * try_next_heaviest.  It tracks whether THIS iteration of the migration
+	 * loop moved anything; resetting it would cause an already-balanced
+	 * second-pass CPU to incorrectly trigger another try_next_heaviest.
 	 */
 	if (!moved_irq)
 		goto try_next_heaviest;
@@ -361,20 +441,25 @@ static void process_timeout(struct timer_list *t)
 
 static void sbalance_wait(long poll_jiffies)
 {
-	static struct process_timer timer;
-
 	/*
+	 * Stack-allocate the timer so each call to sbalance_wait() owns its
+	 * own timer instance.  The original static local was safe in practice
+	 * (only one caller), but a stack allocation makes the ownership and
+	 * lifetime explicit and removes the latent hazard entirely.
+	 *
 	 * Open code freezable_schedule_timeout_interruptible() in order to
 	 * make the timer deferrable, so that it doesn't kick CPUs out of idle.
 	 */
+	struct process_timer timeout;
+
 	freezer_do_not_count();
 	__set_current_state(TASK_IDLE);
-	timer.task = current;
-	timer_setup(&timer.timer, process_timeout, TIMER_DEFERRABLE);
-	timer.timer.expires = jiffies + poll_jiffies;
-	add_timer(&timer.timer);
+	timeout.task = current;
+	timer_setup(&timeout.timer, process_timeout, TIMER_DEFERRABLE);
+	timeout.timer.expires = jiffies + poll_jiffies;
+	add_timer(&timeout.timer);
 	schedule();
-	del_singleshot_timer_sync(&timer.timer);
+	del_singleshot_timer_sync(&timeout.timer);
 	freezer_count();
 }
 
@@ -384,9 +469,12 @@ static int __noreturn sbalance_thread(void *data)
 	struct bal_domain *bd;
 	int cpu;
 
-	/* Parse the list of CPUs to exclude, if any */
-	if (cpulist_parse("", &cpu_exclude_mask))
-		cpu_exclude_mask = CPU_MASK_NONE;
+	/*
+	 * No CPUs are excluded by default.  Initialise explicitly rather than
+	 * relying on cpulist_parse("") succeeding with an empty string, which
+	 * is implementation-defined behaviour across kernel versions.
+	 */
+	cpu_exclude_mask = CPU_MASK_NONE;
 
 	/* Initialize the data used for balancing */
 	for_each_possible_cpu(cpu) {
@@ -404,7 +492,19 @@ static int __noreturn sbalance_thread(void *data)
 
 static int __init sbalance_init(void)
 {
-	BUG_ON(IS_ERR(kthread_run(sbalance_thread, NULL, "sbalanced")));
+	struct task_struct *t;
+
+	/*
+	 * Use a named variable so we can log a proper error instead of
+	 * unconditionally panicking the kernel with BUG_ON().  If kthread
+	 * creation fails (e.g. OOM at init time), IRQ balancing simply won't
+	 * happen — the system remains functional.
+	 */
+	t = kthread_run(sbalance_thread, NULL, "sbalanced");
+	if (IS_ERR(t)) {
+		pr_err("failed to start sbalanced kthread: %ld\n", PTR_ERR(t));
+		return PTR_ERR(t);
+	}
 	return 0;
 }
 late_initcall(sbalance_init);

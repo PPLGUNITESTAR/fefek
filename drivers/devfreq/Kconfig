@@ -171,10 +171,58 @@ config ADRENO_IDLER
 	depends on DEVFREQ_GOV_QCOM_ADRENO_TZ
 	default y
 	help
-	  Uses a different calculation method on top of Adreno TZ
-	  just for calculating frequency for idle to reduce the
-	  wasted power coming from stock Adreno TZ while
-	  maintaining high-performance.
+	  Replaces msm-adreno-tz's idle frequency selection with a
+	  lighter ondemand-style algorithm that aggressively ramps the
+	  GPU down to its lowest OPP during idle periods, reducing
+	  power consumption without affecting peak performance.
+	  All tunables are exposed via /sys/module/adreno_idler/parameters/
+	  and can be overridden at runtime without a reboot.
+
+config ADRENO_IDLER_ACTIVE
+	bool "Enable Adreno Idler at boot"
+	depends on ADRENO_IDLER
+	default n
+	help
+	  Activate the Adreno idler algorithm at boot time.
+	  Can be toggled at runtime via:
+	    /sys/module/adreno_idler/parameters/adreno_idler_active
+
+config ADRENO_IDLER_IDLEWORKLOAD
+	int "Idle workload threshold (busy_time)"
+	depends on ADRENO_IDLER
+	range 1 1000000
+	default 4500
+	help
+	  stats.busy_time value below which a GPU sample is considered
+	  idle.  Higher values cause more aggressive frequency ramp-down.
+	  Must be >= 1.  Tunable at runtime via:
+	    /sys/module/adreno_idler/parameters/adreno_idler_idleworkload
+
+config ADRENO_IDLER_IDLEWAIT
+	int "Consecutive idle samples before ramp-down"
+	depends on ADRENO_IDLER
+	range 1 100
+	default 15
+	help
+	  Number of consecutive idle samples required before the GPU
+	  frequency is ramped down to the minimum OPP.  Lower values
+	  cause more aggressive ramp-down; values < 1 are rejected.
+	  Tunable at runtime via:
+	    /sys/module/adreno_idler/parameters/adreno_idler_idlewait
+
+config ADRENO_IDLER_DOWNDIFFERENTIAL
+	int "Down-differential threshold (percent, 1-100)"
+	depends on ADRENO_IDLER
+	range 1 100
+	default 20
+	help
+	  Ramp-down only occurs when:
+	    busy_time * 100 < total_time * DOWNDIFFERENTIAL
+	  Lower values make ramp-down less likely (more conservative).
+	  Valid range is 1-100; 0 would silently disable ramp-down
+	  entirely and is rejected.  Tunable at runtime via:
+	    /sys/module/adreno_idler/parameters/adreno_idler_downdifferential
+
 
 config DEVFREQ_GOV_QCOM_GPUBW_MON
 	tristate "GPU BW voting governor"
