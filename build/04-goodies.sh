@@ -16,8 +16,23 @@ add_goodies() {
 
     # ── Baseband Guard ────────────────────────────────────────────────────────
     info "Setting up Baseband Guard..."
-    curl -LSs "https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh" | bash &>/dev/null
+    curl -LSs --fail --retry 3 "https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh" \
+        | bash &>/dev/null \
+        || die "BBG setup script failed to download/run"
     echo "CONFIG_BBG=y" >> "$MAIN_DEFCONFIG"
+    # Inject baseband_guard into CONFIG_LSM if kernel supports DEFINE_LSM
+    local DEFINE_LSM_CHECK
+    DEFINE_LSM_CHECK=$(grep -q "#define DEFINE_LSM(lsm)" "${PWD}/include/linux/lsm_hooks.h" 2>/dev/null && echo "true" || echo "false")
+    if [[ "$DEFINE_LSM_CHECK" == "true" ]]; then
+        local LSM_FALLBACK='CONFIG_LSM="lockdown,yama,loadpin,safesetid,integrity,selinux,smack,tomoyo,apparmor,bpf,baseband_guard"'
+        if grep -q "CONFIG_LSM=" "$MAIN_DEFCONFIG"; then
+            sed -i '/CONFIG_LSM=/s/"$/ ,baseband_guard"/' "$MAIN_DEFCONFIG"
+            info "Appended baseband_guard to existing CONFIG_LSM"
+        else
+            echo "$LSM_FALLBACK" >> "$MAIN_DEFCONFIG"
+            info "Added default CONFIG_LSM with baseband_guard"
+        fi
+    fi
     success "Baseband Guard enabled"
 
     # ── KernelSU + optional SUSFS ─────────────────────────────────────────────
@@ -63,8 +78,6 @@ add_goodies() {
 
             local KSU_HOOK="$HOOK_SYSCALL"
             if [[ "$KERNELSU_SELECTOR" == "zako_susfs" || "$KERNELSU_SELECTOR" == "zako-susfs" ]]; then
-                apply_patch_list --fuzz=5 "SUSFS ($KERNEL_VERSION)" "$SUSFS_PATCH"
-                _append_susfs_configs
                 KSU_HOOK="$HOOK_SUSFS"
             else
                 info "ReSukiSU without SUSFS"
@@ -73,13 +86,55 @@ add_goodies() {
             info "Applying backport + hook patches..."
             curl -LSs "$BACKPORT" | bash &>/dev/null
             curl -LSs "$KSU_HOOK" | bash &>/dev/null
+
+            if [[ "$KERNELSU_SELECTOR" == "zako_susfs" || "$KERNELSU_SELECTOR" == "zako-susfs" ]]; then
+                apply_patch_list --fuzz=5 "SUSFS ($KERNEL_VERSION)" "$SUSFS_PATCH"
+                _append_susfs_configs
+            fi
+
             success "ReSukiSU ready"
             ;;
 
-
-
         none)
             info "KSU skipped (mode=none)"
+            ;;
+
+        ksunext|ksunext_susfs|ksunext-susfs)
+            # ── KernelSU-Next (legacy branch) ──────────────────────────────
+            info "Setting up KernelSU-Next (legacy)..."
+            local KSU_NEXT_URI="https://github.com/KernelSU-Next/KernelSU-Next/raw/refs/heads/dev/kernel/setup.sh"
+            local KSU_NEXT_BRANCH="legacy"
+            if [[ "$KERNELSU_SELECTOR" == "ksunext_susfs" || "$KERNELSU_SELECTOR" == "ksunext-susfs" ]]; then
+                KSU_NEXT_BRANCH="legacy_susfs"
+            fi
+            curl -LSs --fail --retry 3 "$KSU_NEXT_URI" \
+                | bash -s "$KSU_NEXT_BRANCH" &>/dev/null \
+                || die "KernelSU-Next setup script failed to download/run"
+
+            {
+                echo "CONFIG_KSU=y"
+                echo "CONFIG_KSU_MANUAL_HOOK=y"
+                echo "CONFIG_HAVE_SYSCALL_TRACEPOINTS=y"
+                echo "CONFIG_THREAD_INFO_IN_TASK=y"
+            } >> "$MAIN_DEFCONFIG"
+
+            local KSU_HOOK="$HOOK_SYSCALL"
+            if [[ "$KERNELSU_SELECTOR" == "ksunext_susfs" || "$KERNELSU_SELECTOR" == "ksunext-susfs" ]]; then
+                KSU_HOOK="$HOOK_SUSFS"
+            else
+                info "KernelSU-Next without SUSFS"
+            fi
+
+            info "Applying backport + hook patches..."
+            curl -LSs "$BACKPORT" | bash &>/dev/null
+            curl -LSs "$KSU_HOOK" | bash &>/dev/null
+
+            if [[ "$KERNELSU_SELECTOR" == "ksunext_susfs" || "$KERNELSU_SELECTOR" == "ksunext-susfs" ]]; then
+                apply_patch_list --fuzz=5 "SUSFS ($KERNEL_VERSION)" "$SUSFS_PATCH"
+                _append_susfs_configs
+            fi
+
+            success "KernelSU-Next ready"
             ;;
     esac
 }

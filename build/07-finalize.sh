@@ -80,6 +80,16 @@ finalize_build() {
     local F2FS_STR="INACTIVE"
     [[ "$F2FS_SELECTOR" == "f2fs" ]] && F2FS_STR="ACTIVE"
 
+    # KSU display label
+    local KSU_STR
+    case "$KERNELSU_SELECTOR" in
+        zako)                        KSU_STR="ReSukiSU" ;;
+        zako_susfs|zako-susfs)       KSU_STR="ReSukiSU + SUSFS" ;;
+        ksunext)                     KSU_STR="KernelSU-Next" ;;
+        ksunext_susfs|ksunext-susfs) KSU_STR="KernelSU-Next + SUSFS" ;;
+        *)                           KSU_STR="Unrooted" ;;
+    esac
+
     # PATCH health: green if zero failures, red otherwise
     local PATCH_STR
     if [[ "$PATCH_FAILED_TOTAL" -eq 0 ]]; then
@@ -117,7 +127,7 @@ finalize_build() {
     echo -e "${CY}├━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┤${NC}"
     printf  "${CY}│${NC}  ${W}Kernel  :${NC} ${G}%-41s${NC}${CY}│${NC}\n" "$KERNEL_NAME"
     printf  "${CY}│${NC}  ${W}Device  :${NC} ${Y}%-41s${NC}${CY}│${NC}\n" "$DEVICE_IMPORT"
-    printf  "${CY}│${NC}  ${W}KSU     :${NC} ${M}%-41s${NC}${CY}│${NC}\n" "$KERNELSU_SELECTOR"
+    printf  "${CY}│${NC}  ${W}KSU     :${NC} ${M}%-41s${NC}${CY}│${NC}\n" "$KSU_STR"
     printf  "${CY}│${NC}  ${W}BORE    :${NC} ${G}%-41s${NC}${CY}│${NC}\n" "$BORE_STR"
     printf  "${CY}│${NC}  ${W}F2FS    :${NC} ${Y}%-41s${NC}${CY}│${NC}\n" "$F2FS_STR"
     printf  "${CY}│${NC}  ${W}BBG     :${NC} ${R}%-41s${NC}${CY}│${NC}\n" "ACTIVE (Enforced)"

@@ -43,9 +43,10 @@ jobs:
       date: ${{ steps.ts.outputs.DATE }}
       changelog: ${{ steps.extract_info.outputs.CHANGELOG }}
     strategy:
+      fail-fast: false
       matrix:
         build-type: [sweet]
-        ksu-type: [zako, zako_susfs, none]
+        ksu-type: [zako, zako_susfs, ksunext, ksunext_susfs, none]
 
     steps:
       - uses: actions/checkout@v6.0.2
@@ -64,13 +65,18 @@ jobs:
           echo "TIME=$TIME" >> $GITHUB_OUTPUT
           echo "CLOCK=$CLOCK" >> $GITHUB_OUTPUT
 
+      - name: Setup swap space
+        uses: pierotofy/set-swap-space@master
+        with:
+          swap-size-gb: 16
+
       - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            bc bison flex zip p7zip-full \
-            libc6 libstdc++6 libssl-dev zstd \
-            lld patchutils
+            bc bison flex build-essential zip p7zip-full \
+            libc6 libstdc++6 libssl-dev libelf-dev zstd \
+            lld patchutils ccache python3 curl wget
 
       - name: Preparing kernel sources
         run: |
@@ -178,6 +184,8 @@ jobs:
             | :--- | :--- | :--- | :--- |
             | **`zako`** | [ReSukiSU](https://resukisu.github.io/guide/install.html) | Standard Hooks | General users needing root access |
             | **`zako_susfs`** | [ReSukiSU](https://resukisu.github.io/guide/install.html) | SUSFS (Enhanced Hide) | Users who need strict root hiding (Banking/Games) |
+            | **`ksunext`** | [KernelSU-Next](https://github.com/KernelSU-Next/KernelSU-Next) | Standard Hooks (legacy) | Users preferring KernelSU-Next |
+            | **`ksunext_susfs`** | [KernelSU-Next](https://github.com/KernelSU-Next/KernelSU-Next) | SUSFS + legacy hooks | KSU-Next users needing root hiding |
             | **`none`** | *(Unrooted)* | Pure Vanilla | Users looking for maximum stability without root |
 
             ### Important Notes

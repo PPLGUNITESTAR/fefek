@@ -37,6 +37,12 @@ if [ -f buildinfo.sh ]; then
     zako_susfs|zako-susfs)
       ui_print "  Root       : ReSukiSU";
       ui_print "  SUSFS      : Enabled";;
+    ksunext)
+      ui_print "  Root       : KernelSU-Next";
+      ui_print "  SUSFS      : Disabled";;
+    ksunext_susfs|ksunext-susfs)
+      ui_print "  Root       : KernelSU-Next";
+      ui_print "  SUSFS      : Enabled";;
     *)
       ui_print "  Root       : Unrooted";
       ui_print "  SUSFS      : N/A";;
