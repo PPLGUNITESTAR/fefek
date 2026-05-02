@@ -10,6 +10,13 @@
 # Normal rules (sorted alphabetically)
 #
 .*
+!.github/
+!.gitignore
+!.mailmap
+!.cocciconfig
+!.get_maintainer.ignore
+!.gitattributes
+
 *.a
 *.bin
 *.bz2
@@ -129,3 +136,19 @@ kernel/configs/android-*.cfg
 #Ignoring Android.bp link file
 #
 Android.bp
+
+#
+# Toolchains and build artifacts
+#
+/gcc32/
+/gcc64/
+/clang/
+/lilium/
+/kaleidoscope/
+/greenforce-clang/
+/REFFERENCES/
+/out/
+*.zip
+*.log
+warnings.txt
+
